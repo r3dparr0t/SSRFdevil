@@ -2,7 +2,8 @@
 name = "ssrfdevil"
 version = "0.1.0"
 edition = "2021"
-default-run = "ssrfdevil"   # <-- این خط رو اضافه کن
+default-run = "ssrfdevil"
+authors = ["redparrot",]
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
