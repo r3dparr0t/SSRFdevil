@@ -2,6 +2,7 @@
 name = "SSRFdevil"
 version = "0.1.0"
 edition = "2024"
+default-run = "SSRFdevil"   # <-- این خط رو اضافه کن
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -16,4 +17,5 @@ serde_yaml = "0.9"
 serde_json = "1.0"
 sled = "0.34.7"
 url = "2.5.8"
+chrono = "0.4"
 
