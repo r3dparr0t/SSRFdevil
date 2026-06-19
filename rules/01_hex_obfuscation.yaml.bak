@@ -1,0 +1,13 @@
+meta:
+  name: "Standard Hex Obfuscation"
+  date: "2026-06-18"
+  rank: 85
+  description: "Converts standard IPv4 to full Hexadecimal format"
+
+script: |
+  function bypass(target)
+      -- فرض می‌کنیم هدف 127.0.0.1 است
+      -- خروجی هگز کامل: 0x7f000001 یا بخش‌بخش: 0x7f.0x0.0x0.0x1
+      return "http://0x7f.0x0.0x0.0x1"
+  end
+  

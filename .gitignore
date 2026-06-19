@@ -1,0 +1,4 @@
+/target/
+/rules_db/
+*.log
+.env
