@@ -1,16 +1,16 @@
 [package]
-name = "SSRFdevil"
+name = "ssrfdevil"
 version = "0.1.0"
-edition = "2024"
-default-run = "SSRFdevil"   # <-- این خط رو اضافه کن
+edition = "2021"
+default-run = "ssrfdevil"   # <-- این خط رو اضافه کن
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
 colored = "2"
-lonkero = "3.6.6" 
-attackstr = "0.2.0"
-wafrift-oracle = "0.2.15"
+#lonkero = "3.6.6" 
+#attackstr = "0.2.0"
+#wafrift-oracle = "0.2.15"
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"

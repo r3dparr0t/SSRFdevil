@@ -4,42 +4,12 @@ use chrono::Local;
 use serde_yaml;
 use std::path::Path;
 
-#[derive(Debug, serde::Serialize)]
-struct RuleFile {
-    meta: Meta,
-    r#match: Match,
-    script: Script,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct Meta {
-    id: String,
-    version: u32,
-    name: String,
-    description: String,
-    author: String,
-    created: String,
-    updated: String,
-    rank: u32,
-    confidence: u32,
-    severity: String,
-    tags: Vec<String>,
-    references: Vec<String>,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct Match {
-    schemes: Vec<String>,
-    requires: Vec<String>,
-    supports: Vec<String>,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct Script {
-    language: String,
-    entry: String,
-    source: String,
-}
+use ssrfdevil::rule::{
+    RuleFile,
+    RuleMeta,
+    MatchConfig,
+    ScriptConfig,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛠️  SSRFdevil Rule Generator");
@@ -97,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ۵. ساخت ساختار نهایی
     let rule = RuleFile {
-        meta: Meta {
+        meta: RuleMeta {
             id: id.clone(),
             version: 1,
             name: name.to_string(),
@@ -111,12 +81,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             tags,
             references: vec![],
         },
-        r#match: Match {
+        r#match: MatchConfig {
             schemes: vec!["http".to_string(), "https".to_string()],
             requires: vec!["hostname".to_string()],
             supports: vec!["ipv4".to_string()],
         },
-        script: Script {
+        script: ScriptConfig {
             language: "lua".to_string(),
             entry: "bypass".to_string(),
             source,

@@ -1,8 +1,7 @@
 use std::process;
 use url::Url;
-
+use ssrfdevil::rule_mgr;
 // mod scanner;
-mod rule_mgr;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> { // خروجی تابع اصلاح شد
