@@ -1,0 +1,24 @@
+meta:
+  id: ftp_internal
+  version: 1
+  name: "FTP Protocol Internal"
+  description: "Uses ftp:// to access internal FTP"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 55
+  confidence: 60
+  severity: medium
+  tags: [ftp, internal]
+  references: []
+match:
+  schemes: [http, https, ftp]
+  requires: [hostname]
+  supports: [ftp]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "ftp://127.0.0.1/" }
+    end

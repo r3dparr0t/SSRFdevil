@@ -1,0 +1,24 @@
+meta:
+  id: _192_168_0_1
+  version: 1
+  name: "Internal IP 192.168.0.1"
+  description: "Targets internal router/gateway"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 80
+  confidence: 70
+  severity: high
+  tags: [internal, router, lan]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://192.168.0.1/" }
+    end

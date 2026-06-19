@@ -1,0 +1,24 @@
+meta:
+  id: localtest_me
+  version: 1
+  name: "localtest.me DNS"
+  description: "Uses localtest.me to resolve to 127.0.0.1"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 70
+  confidence: 85
+  severity: high
+  tags: [dns, localtest, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [dns]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://localtest.me/" }
+    end

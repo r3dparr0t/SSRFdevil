@@ -1,0 +1,28 @@
+meta:
+  id: http_redirect
+  version: 1
+  name: "HTTP Redirect to Localhost"
+  description: "Uses HTTP redirect to localhost via 301/302"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 55
+  confidence: 90
+  severity: medium
+  tags: [redirect, localhost, bypass]
+  references: []
+
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [http]
+
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return {
+        url = "http://localhost/redirect"
+      }
+    end

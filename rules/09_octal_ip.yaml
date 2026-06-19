@@ -1,0 +1,24 @@
+meta:
+  id: octal_ip
+  version: 1
+  name: "Octal IP Representation"
+  description: "Uses octal representation of IPv4 (0177.0.0.1)"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 78
+  confidence: 90
+  severity: high
+  tags: [octal, ipv4, encoding, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://0177.0.0.1/" }
+    end

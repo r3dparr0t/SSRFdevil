@@ -1,0 +1,24 @@
+meta:
+  id: ip_with_zero_octet
+  version: 1
+  name: "IPv4 with Zero Octet"
+  description: "Uses 0.0.0.0 as localhost alternative"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 50
+  confidence: 70
+  severity: low
+  tags: [ipv4, zero, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://0.0.0.0/" }
+    end

