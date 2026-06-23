@@ -1,15 +1,10 @@
-use std::fs;
-use std::io::{self, Write};
 use chrono::Local;
 use serde_yaml;
+use std::fs;
+use std::io::{self, Write};
 use std::path::Path;
 
-use ssrfdevil::rule::{
-    RuleFile,
-    RuleMeta,
-    MatchConfig,
-    ScriptConfig,
-};
+use ssrfdevil::rule::{MatchConfig, RuleFile, RuleMeta, ScriptConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛠️  SSRFdevil Rule Generator");
@@ -32,7 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     io::stdout().flush()?;
     let mut tags_input = String::new();
     io::stdin().read_line(&mut tags_input)?;
-    let tags: Vec<String> = tags_input.trim().split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let tags: Vec<String> = tags_input
+        .trim()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
 
     print!("⚙️  Severity (informational/low/medium/high/critical): ");
     io::stdout().flush()?;
@@ -47,7 +47,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rank: u32 = rank_input.trim().parse().unwrap_or(50);
 
     // ۲. ساخت ID از نام
-    let id = name.to_lowercase().replace(' ', "_").replace(['.', '/', '\\'], "_");
+    let id = name
+        .to_lowercase()
+        .replace(' ', "_")
+        .replace(['.', '/', '\\'], "_");
 
     // ۳. تاریخ امروز
     let today = Local::now().format("%Y-%m-%d").to_string();
