@@ -122,6 +122,10 @@ pub fn run_interactive_console(db: &Db, initial_rule: Option<RuleFile>) {
 
 fn select_rule(db: &Db, input: &str, last_results: &[RuleFile]) -> Option<RuleFile> {
     if let Ok(idx) = input.parse::<usize>() {
+        if last_results.is_empty() {
+            println!("[i] Run 'search' or 'list' first to use index selection.");
+            return None;
+        }
         return last_results.get(idx).cloned();
     }
 
