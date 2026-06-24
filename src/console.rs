@@ -1,17 +1,18 @@
 use std::io::{self, Write};
-
 use sled::Db;
 
-use ssrfdevil::rule::RuleFile;
-use ssrfdevil::rule_mgr;
+use ssrfdevil::{
+	rule::RuleFile,
+	rule_mgr,
+	executor};
 
-pub fn run_interactive_console(db: &Db, initial_rule: Option<RuleFile>) {
+pub fn run_interactive_console(db: &Db, initial_rule: Option<RuleFile>, target_url: &str) {
     let stdin = io::stdin();
 
     let mut current_rule = initial_rule;
     let mut last_results: Vec<RuleFile> = Vec::new();
 
-    println!("\nSSRFdevil Interactive Console\nType 'help' for commands.\n");
+    println!("\nSSRFdevil Interactive Console\nJust type 'run' and enjoy or 'help' for commands.\n");
 
     loop {
         match &current_rule {
@@ -83,6 +84,31 @@ pub fn run_interactive_console(db: &Db, initial_rule: Option<RuleFile>) {
                     }
                 }
             }
+            "run" | "scan" => {
+            	match &current_rule {
+            		Some(rule) => {
+            			println!("[*] Executing Lua bypass script: {} ...", rule.meta.name);
+                                
+                        // صدا زدن مفسر لوآ با فیلدهای جدید یمل تو
+                        match executor::execute_lua_bypass(
+                        	&rule.script.source,
+                            &rule.script.entry,
+                            &target_url) {
+                            	Ok(generated_url) => {
+                                	println!("[+] Lua Output -> Generated URL: {}", generated_url);
+                                	println!("[*] Ready to dispatch request to scanner module...");
+                                    // اینجا بعداً خروجی را می‌فرستیم برای scanner::run(generated_url)
+                                }
+                                Err(e) => {
+                                    println!("❌ Lua Execution Error: {}", e);
+                                }
+                            }
+                         }
+                         None => {
+                            println!("[!] No rule selected. Use 'use <id>' first or type 'run' with default.");
+                         }
+                    }
+            }
             "info" => {
                 if arg.is_empty() {
                     show_current_rule(&current_rule);
@@ -147,12 +173,13 @@ fn show_current_rule(current_rule: &Option<RuleFile>) {
 fn print_help() {
     println!(
         "\nCommands:
-        search <text>       Search rules by text
-        use <index|id>      Select a rule by id or index
-        list                Show all rules
-        info <index|id>     Show details of current rule or given id
-        back                Deselect current rule
-        help / ?            Show this help
-        exit / quit         Quit the console\n"
+        search <text>        Search rules by text
+        use <index|id>       Select a rule by id or index
+        list                 Show all rules
+        run / scanner        Start attack.
+        info <index|id>      Show details of current rule or given id
+        back                 Deselect current rule
+        help / ?             Show this help
+        exit / quit          Quit the console\n"
     );
 }

@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("❌ No rules found in database.");
     }
 
-    console::run_interactive_console(&db, initial_rule);
+    console::run_interactive_console(&db, initial_rule, target_str);
     // running scanner
     /* if let Err(e) = scanner::run(target_url).await {
         eprintln!("💥 Scanner encountered an error: {}", e);
