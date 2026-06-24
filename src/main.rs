@@ -1,8 +1,10 @@
-use ssrfdevil::rule_mgr;
 use std::process;
 use url::Url;
 // mod scanner;
-mod console;
+use ssrfdevil::{
+	console,
+	paths,
+	rule_mgr};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,11 +28,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("🚀 Launching SSRFdevil for: {}", target_url);
-
+	let mut settings = ssrfdevil::console::Settings::default(); 
     // load rules to sled
-    let db = sled::open("rules_db")?;
+    let db = sled::open(paths::DB_PATH)?;
     println!("--- Step 1: Synthesizing Directory ---");
-    rule_mgr::populate_rules_db(&db, "./rules")?;
+    rule_mgr::populate_rules_db(&db, paths::RULES_DIR)?;
 
     // println!("\n--- Step 2: Listing Indexed Rules ---");
     // RuleMgr::list_rules(&db);
@@ -43,9 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rule_mgr::display_rule(1, rule);
     } else {
         println!("❌ No rules found in database.");
-    }
-
-    console::run_interactive_console(&db, initial_rule, target_str);
+	}
+	console::run_interactive_console(&db, initial_rule, target_str, &mut settings);
+	//console::run_interactive_console(&db, initial_rule, target_str, &mut settings);
     // running scanner
     /* if let Err(e) = scanner::run(target_url).await {
         eprintln!("💥 Scanner encountered an error: {}", e);
