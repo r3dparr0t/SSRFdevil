@@ -1,16 +1,9 @@
 use std::io::{self, Write};
-use std::fs;
 use sled::Db;
-//use rand::Rng;
-// مسیر WeightedIndex در نسخه 0.10 کمی متفاوت شده:
-use rand::distr::{Distribution, weighted::WeightedIndex};
-
-// تغییر مهم: استفاده از crate:: به جای ssrfdevil::
 use crate::{
     rule::RuleFile,
     rule_mgr,
-    executor,
-    paths
+    executor
 };
 
 // ---------------------------------------------------
@@ -114,51 +107,6 @@ fn select_ua_profile(settings: &mut Settings) {
     }
 }
 
-// ---------------------------------------------------
-// بخش بارگذاری و انتخاب یوزرایجنت وزنی
-// ---------------------------------------------------
-
-type UaEntry = (u32, String);
-
-fn load_user_agents(min_weight: u32) -> Vec<UaEntry> {
-    let content = match fs::read_to_string(paths::UA_FILE) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("[!] Warning: Could not read {}! Using safe fallback.", paths::UA_FILE);
-            return vec![(100, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36".to_string())];
-        }
-    };
-
-    content
-        .lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.is_empty() { return None; }
-            if let Some((weight_str, ua)) = line.split_once('|') {
-                if let Ok(weight) = weight_str.parse::<u32>() {
-                    if weight >= min_weight {
-                        return Some((weight, ua.to_string()));
-                    }
-                }
-            }
-            None
-        })
-        .collect()
-}
-
-fn get_weighted_ua(ua_list: &[UaEntry]) -> String {
-    if ua_list.is_empty() {
-        return "Mozilla/5.0 (compatible; SSRFdevil/1.0)".to_string();
-    }
-    let weights: Vec<u32> = ua_list.iter().map(|(w, _)| *w).collect();
-    if let Ok(dist) = WeightedIndex::new(weights) {
-        let mut rng = rand::rng(); 
-        let index = dist.sample(&mut rng);
-        ua_list[index].1.clone()
-    } else {
-        "Mozilla/5.0 (compatible; SSRFdevil/1.0)".to_string()
-    }
-}
 
 pub fn run_interactive_console(
     db: &Db, 
@@ -169,8 +117,6 @@ pub fn run_interactive_console(
     let stdin = io::stdin();
     let mut current_rule = initial_rule;
     let mut last_results: Vec<RuleFile> = Vec::new();
-    
-    let mut ua_list = load_user_agents(settings.ua_profile.min_weight());
 
     println!("\nSSRFdevil Interactive Console\nJust type 'run' and enjoy or 'help' for commands.\n");
 
@@ -197,7 +143,7 @@ pub fn run_interactive_console(
             "help" | "?" => print_help(),
             "settings" => {
                 run_settings_menu(settings, &current_rule); 
-                ua_list = load_user_agents(settings.ua_profile.min_weight());
+                executor::init_ua_list(settings.ua_profile.min_weight());
                 println!("[*] User-Agent profile reloaded based on new settings.");
             }
             "search" => {
@@ -237,13 +183,7 @@ pub fn run_interactive_console(
                                     println!("[+] Lua Output -> Method: {}", payload.method);
                                 }
 
-                                if !payload.headers.contains_key("User-Agent") && !payload.headers.contains_key("user-agent") {
-                                    let random_ua = get_weighted_ua(&ua_list);
-                                    payload.headers.insert("User-Agent".to_string(), random_ua.clone());
-                                    println!("[*] Injected random User-Agent: {}", random_ua);
-                                }
-
-                                println!("[*] Ready to dispatch request to scanner module...");
+                            println!("[*] Ready to dispatch request to scanner module...");
                             }
                             Err(e) => println!("❌ Lua Execution Error: {}", e),
                         }

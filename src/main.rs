@@ -4,7 +4,9 @@ use url::Url;
 use ssrfdevil::{
 	console,
 	paths,
-	rule_mgr};
+	rule_mgr,
+	executor
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,9 +48,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("❌ No rules found in database.");
 	}
+
+	executor::init_ua_list(settings.ua_profile.min_weight());
 	console::run_interactive_console(&db, initial_rule, target_str, &mut settings);
-	//console::run_interactive_console(&db, initial_rule, target_str, &mut settings);
-    // running scanner
+	 // running scanner
     /* if let Err(e) = scanner::run(target_url).await {
         eprintln!("💥 Scanner encountered an error: {}", e);
     } */
