@@ -2,10 +2,10 @@ use std::io::{self, Write};
 use sled::Db;
 use crate::{
     rule::RuleFile,
-    rule_mgr,
-    executor
+    rule_engine,
+    executor,
+    engine::ua_engine
 };
-
 // ---------------------------------------------------
 // بخش تنظیمات (Settings)
 // ---------------------------------------------------
@@ -143,17 +143,17 @@ pub fn run_interactive_console(
             "help" | "?" => print_help(),
             "settings" => {
                 run_settings_menu(settings, &current_rule); 
-                executor::init_ua_list(settings.ua_profile.min_weight());
+                ua_engine::init();
                 println!("[*] User-Agent profile reloaded based on new settings.");
             }
             "search" => {
-                last_results = rule_mgr::search_rules(db, arg);
-                rule_mgr::display_result_rules(&last_results);
+                last_results = rule_engine::search_rules(db, arg);
+                rule_engine::display_result_rules(&last_results);
                 println!("[i] {} matching rule(s).", last_results.len());
             }
             "list" => {
-                last_results = rule_mgr::search_rules(db, "");
-                rule_mgr::display_result_rules(&last_results);
+                last_results = rule_engine::search_rules(db, "");
+                rule_engine::display_result_rules(&last_results);
                 println!("[i] {} total rule(s).", last_results.len());
             }
             "use" => {
@@ -177,7 +177,7 @@ pub fn run_interactive_console(
                             &rule.script.entry,
                             &target_url
                         ) {
-                            Ok(mut payload) => {
+                            Ok(payload) => {
                                 println!("[+] Lua Output -> Generated URL: {}", payload.url);
                                 if payload.method != "GET" {
                                     println!("[+] Lua Output -> Method: {}", payload.method);
@@ -195,7 +195,7 @@ pub fn run_interactive_console(
                 if arg.is_empty() {
                     show_current_rule(&current_rule);
                 } else if let Some(rule) = select_rule(db, arg, &last_results) {
-                    rule_mgr::show_rule_details(&rule);
+                    rule_engine::show_rule_details(&rule);
                 } else {
                     println!("[!] Rule not found.");
                 }
@@ -221,12 +221,12 @@ fn select_rule(db: &Db, input: &str, last_results: &[RuleFile]) -> Option<RuleFi
         }
         return last_results.get(idx).cloned();
     }
-    rule_mgr::get_rule_by_id(db, input)
+    rule_engine::get_rule_by_id(db, input)
 }
 
 fn show_current_rule(current_rule: &Option<RuleFile>) {
     match current_rule {
-        Some(rule) => rule_mgr::show_rule_details(rule),
+        Some(rule) => rule_engine::show_rule_details(rule),
         None => println!("[!] No rule selected."),
     }
 }

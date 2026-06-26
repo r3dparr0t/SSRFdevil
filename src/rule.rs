@@ -43,3 +43,29 @@ pub struct RuleFile {
     pub r#match: MatchConfig,
     pub script: ScriptConfig,
 }
+
+#[derive(Debug, Clone)]
+pub struct RuleTrace {
+    pub rule_id: String,
+    pub matched: bool,
+    pub input: String,
+    pub output: Option<String>,
+    pub steps: Vec<TraceStep>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraceStep {
+    pub stage: String,     // match / script / transform
+    pub message: String,
+}
+
+
+
+pub fn explain_trace(trace: &RuleTrace) {
+    println!("\n=== Rule Execution Trace ===\nRule: {}\nInput: {}"
+	, trace.rule_id, trace.input);
+    for step in &trace.steps {
+        println!("[{}] {}", step.stage, step.message);
+    }
+    println!("Output: {:?}", trace.output);
+}

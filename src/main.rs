@@ -4,8 +4,8 @@ use url::Url;
 use ssrfdevil::{
 	console,
 	paths,
-	rule_mgr,
-	executor
+	rule_engine,
+	engine::ua_engine
 };
 
 #[tokio::main]
@@ -30,26 +30,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("🚀 Launching SSRFdevil for: {}", target_url);
-	let mut settings = ssrfdevil::console::Settings::default(); 
+    
     // load rules to sled
     let db = sled::open(paths::DB_PATH)?;
     println!("--- Step 1: Synthesizing Directory ---");
-    rule_mgr::populate_rules_db(&db, paths::RULES_DIR)?;
+    rule_engine::populate_rules_db(&db, paths::RULES_DIR)?;
 
     // println!("\n--- Step 2: Listing Indexed Rules ---");
     // RuleMgr::list_rules(&db);
 
     // ۴. تست انتخاب هوشمند و پیش‌فرض (Best Rule)
     println!("--- Step 2: Smart Selection ---");
-    let initial_rule = rule_mgr::get_default_rule(&db);
+    let initial_rule = rule_engine::get_default_rule(&db);
     if let Some(ref rule) = initial_rule {
         println!("🔥 System Auto-Selected Best Rule:");
-        rule_mgr::display_rule(1, rule);
+        rule_engine::display_rule(1, rule);
     } else {
         println!("❌ No rules found in database.");
 	}
 
-	executor::init_ua_list(settings.ua_profile.min_weight());
+	ua_engine::init();
+	let mut settings = console::Settings::default();
 	console::run_interactive_console(&db, initial_rule, target_str, &mut settings);
 	 // running scanner
     /* if let Err(e) = scanner::run(target_url).await {

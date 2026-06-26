@@ -5,6 +5,7 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use ssrfdevil::rule::{MatchConfig, RuleFile, RuleMeta, ScriptConfig};
+use ssrfdevil::paths;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛠️  SSRFdevil Rule Generator");
@@ -97,8 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // ۶. شماره‌گذاری فایل (پیدا کردن آخرین شماره)
-    let rules_dir = "./rules";
-    fs::create_dir_all(rules_dir)?;
+    fs::create_dir_all(paths::RULES_DIR)?;
     let max_num = fs::read_dir(rules_dir)?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().is_file())
