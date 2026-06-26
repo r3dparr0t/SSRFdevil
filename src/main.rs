@@ -4,8 +4,7 @@ use url::Url;
 use ssrfdevil::{
 	console,
 	paths,
-	rule_engine,
-	engine::ua_engine
+	engine::{ua_engine, rule_engine}
 };
 
 #[tokio::main]

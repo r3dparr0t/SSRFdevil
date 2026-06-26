@@ -2,9 +2,8 @@ use std::io::{self, Write};
 use sled::Db;
 use crate::{
     rule::RuleFile,
-    rule_engine,
     executor,
-    engine::ua_engine
+    engine::{ua_engine, rule_engine}
 };
 // ---------------------------------------------------
 // بخش تنظیمات (Settings)
