@@ -1,3 +1,6 @@
+// engine/ua_engine.rs
+
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use rand::distr::{Distribution, weighted::WeightedIndex};
 use crate::{
     paths,
@@ -41,7 +44,7 @@ fn load_user_agents(min_weight: u32) -> Vec<UaEntry> {
 
 fn get_random_weighted_ua(ua_list: &[UaEntry]) -> String {
     if ua_list.is_empty() {
-        return "Mozilla/5.0 (compatible; SSRFdevil/1.0)".to_string();
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".to_string();
     }
     let weights: Vec<u32> = ua_list.iter().map(|(w, _)| *w).collect();
     if let Ok(dist) = WeightedIndex::new(weights) {
@@ -49,7 +52,7 @@ fn get_random_weighted_ua(ua_list: &[UaEntry]) -> String {
         let index = dist.sample(&mut rng);
         ua_list[index].1.clone()
     } else {
-        "Mozilla/5.0 (compatible; SSRFdevil/1.0)".to_string()
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".to_string()
     }
 }
 
@@ -64,4 +67,20 @@ pub fn init() {
 pub fn next() -> String {
     let list = UA_LIST.read().unwrap();
     get_random_weighted_ua(&list)
+}
+
+pub fn inject(headers: &mut HeaderMap) {
+    // گرفتن یوزر ایجنت بعدی بر اساس وزن‌دهی از RwLock
+    let next_ua = next();
+    
+    // تبدیل به HeaderValue و تزریق امن به ساختار هدرها
+    if let Ok(header_value) = HeaderValue::from_str(&next_ua) {
+        headers.insert(USER_AGENT, header_value);
+    } else {
+        // فال‌بک امن در صورت بروز هرگونه خطای انکودینگ عجیب در فایل متنی
+        headers.insert(
+            USER_AGENT, 
+            HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        );
+    }
 }
