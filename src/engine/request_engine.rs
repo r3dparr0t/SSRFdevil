@@ -20,6 +20,21 @@ pub struct EngineConfig {
     pub random_delay: bool,
     pub trace: bool,
     pub cookies: bool,
+    pub proxy: bool,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        EngineConfig {
+            timeout: Duration::from_secs(10),
+            redirects: RedirectPolicy::Limited(5),
+            random_ua: true,
+            random_delay: true,
+            trace: false,
+            cookies: false,
+            proxy: false,
+        }
+    }
 }
 
 pub struct RequestEngine {
@@ -29,14 +44,22 @@ pub struct RequestEngine {
 
 impl RequestEngine {
     pub fn new(config: EngineConfig) -> Self {
-        let mut builder = Client::builder().timeout(config.timeout);
+        let mut builder = Client::builder()
+        	.timeout(config.timeout);
+        	//.cookie_store(true);
 
         builder = match config.redirects {
             RedirectPolicy::None => builder.redirect(reqwest::redirect::Policy::none()),
             RedirectPolicy::Limited(n) => builder.redirect(reqwest::redirect::Policy::limited(n)),
             RedirectPolicy::Follow => builder.redirect(reqwest::redirect::Policy::default()),
         };
-
+        builder = builder.danger_accept_invalid_certs(true);
+        // add cookie jar.
+        builder = builder.cookie_store(true);
+		// check if proxy is set
+		/*if self.config.proxy {
+			builder = builder.proxy(reqwest::Proxy::all("http://127.1:8080"));
+		}*/
         RequestEngine {
             client: builder.build().unwrap(),
             config,
@@ -48,7 +71,6 @@ impl RequestEngine {
         if self.config.random_delay {
             delay_engine::wait().await;
         }
-
         // ۲. Injectors (تزریق به هدرها)
         if self.config.random_ua {
             ua_engine::inject(&mut req_data.headers);

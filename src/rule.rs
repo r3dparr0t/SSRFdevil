@@ -59,7 +59,11 @@ pub struct TraceStep {
     pub message: String,
 }
 
-
+pub enum RoleCategory {
+    CloudMetadata, // تست‌های AWS, GCP, Azure
+    InternalInfra,  // تست‌های کانتینرها، داکر، کوبرنتیز
+    GenericWebhook, // تست‌های وب‌هوک و پورت‌های داخلی
+}
 
 pub fn explain_trace(trace: &RuleTrace) {
     println!("\n=== Rule Execution Trace ===\nRule: {}\nInput: {}"
