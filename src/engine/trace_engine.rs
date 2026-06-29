@@ -10,3 +10,10 @@ pub fn before(req: &RequestData) {
 pub fn after(resp: &ResponseData) {
     println!("[TRACE] 🛬 Received Status: {}", resp.status);
 }
+
+pub fn error<E>(url: &str,err: E,)
+where
+    E: std::fmt::Display,
+{
+    eprintln!("[TRACE] ❌ {} -> {}", url, err);
+}

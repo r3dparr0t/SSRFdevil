@@ -20,3 +20,11 @@ pub fn inject(headers: &mut HeaderMap) {
 	headers.insert("Connection", HeaderValue::from_static("keep-alive"));
 	headers.insert("Cache-Control", HeaderValue::from_static("max-age=0"));
 }
+
+//inject_browser_headers()
+
+//inject_json_headers()
+
+//inject_image_headers()
+
+//inject_download_headers()

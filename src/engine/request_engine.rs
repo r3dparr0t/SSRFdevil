@@ -21,6 +21,8 @@ pub struct EngineConfig {
     pub trace: bool,
     pub cookies: bool,
     pub proxy: bool,
+    pub verify_tls: bool,
+    pub http2: bool,
 }
 
 impl Default for EngineConfig {
@@ -33,10 +35,13 @@ impl Default for EngineConfig {
             trace: false,
             cookies: false,
             proxy: false,
+            http2: false,
+            verify_tls: false,
         }
     }
 }
 
+#[derive(Clone)]
 pub struct RequestEngine {
     client: Client,
     config: EngineConfig,
@@ -53,7 +58,10 @@ impl RequestEngine {
             RedirectPolicy::Limited(n) => builder.redirect(reqwest::redirect::Policy::limited(n)),
             RedirectPolicy::Follow => builder.redirect(reqwest::redirect::Policy::default()),
         };
-        builder = builder.danger_accept_invalid_certs(true);
+        //builder = builder.danger_accept_invalid_certs(true);
+		if !config.verify_tls {
+    		builder = builder.danger_accept_invalid_certs(true);
+    	}
         // add cookie jar.
         builder = builder.cookie_store(true);
 		// check if proxy is set
