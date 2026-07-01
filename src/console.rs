@@ -3,8 +3,10 @@ use sled::Db;
 use crate::{
     rule::RuleFile,
     executor,
-    engine::{ua_engine, rule_engine}
+    engine::{ua_engine, rule_engine},
+    crawler::crawler::Crawler
 };
+use url::Url;
 // ---------------------------------------------------
 // بخش تنظیمات (Settings)
 // ---------------------------------------------------
@@ -106,12 +108,12 @@ fn select_ua_profile(settings: &mut Settings) {
     }
 }
 
-
-pub fn run_interactive_console(
+pub async fn run_interactive_console(
     db: &Db, 
     initial_rule: Option<RuleFile>, 
     target_url: &str,
-    settings: &mut Settings
+    settings: &mut Settings,
+    crawler: &mut Crawler,
 ) {
     let stdin = io::stdin();
     let mut current_rule = initial_rule;
@@ -167,7 +169,34 @@ pub fn run_interactive_console(
                     println!("[!] Rule not found.");
                 }
             }
+            "crawl" => {
+                println!("[*] Crawling {}...", target_url);
+                if let Ok(base) = Url::parse(target_url) {
+                    crawler.crawl(&base).await;
+                    if crawler.targets().is_empty() {
+                        println!("[!] No SSRF-prone targets found.");
+                    } else {
+                        println!("[+] Found {} target(s):", crawler.targets().len());
+                        for (i, t) in crawler.targets().iter().enumerate() {
+                            println!("    [{}] {}", i, t);
+                        }
+                    }
+                }
+            }
             "run" | "scan" => {
+                if crawler.targets().is_empty() {
+                    println!("[*] Meh, seems like you forgot I can crawl too...");
+                    println!("[*] Give me a sec.");
+                    if let Ok(base) = Url::parse(target_url) {
+                        crawler.crawl(&base).await;
+                    }
+                    if crawler.targets().is_empty() {
+                        println!("[!] Still nothing. Too clean or too stubborn.");
+                        continue;
+                    }
+                    println!("[+] Got {} target(s). Now we're talking.", crawler.targets().len());
+                }
+                // rest of run
                 match &current_rule {
                     Some(rule) => {
                         println!("[*] Executing Lua bypass script: {} ...", rule.meta.name);
@@ -190,6 +219,7 @@ pub fn run_interactive_console(
                     None => println!("[!] No rule selected. Use 'use <id>' first."),
                 }
             }
+            "url" => {}
             "info" => {
                 if arg.is_empty() {
                     show_current_rule(&current_rule);
@@ -233,10 +263,12 @@ fn show_current_rule(current_rule: &Option<RuleFile>) {
 fn print_help() {
     println!(
         "\nCommands:
+        url                  Change the url
         search <text>        Search rules by text
         use <index|id>       Select a rule by id or index
         list                 Show all rules
         run / scan           Start attack
+        crawl                Crawl target
         info <index|id>      Show details of current rule or given id
         back                 Deselect current rule
         settings             Adjust global settings (UA profile, etc)

@@ -1,3 +1,4 @@
+pub mod crawler;
 pub mod engine;
 pub mod paths;
 pub mod rule;

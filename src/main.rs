@@ -2,9 +2,15 @@ use std::process;
 use url::Url;
 // mod scanner;
 use ssrfdevil::{
+	crawler::crawler::Crawler,
 	console,
 	paths,
-	engine::{ua_engine, rule_engine}
+	engine::{
+		ua_engine,
+		rule_engine,
+		RequestEngine,
+		EngineConfig
+	}
 };
 
 #[tokio::main]
@@ -50,8 +56,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	ua_engine::init();
 	let mut settings = console::Settings::default();
-	console::run_interactive_console(&db, initial_rule, target_str, &mut settings);
-	 // running scanner
+	let engine = RequestEngine::new(EngineConfig::default());
+	let mut crawler = Crawler::new(engine);
+	console::run_interactive_console(&db, initial_rule, target_str, &mut settings, &mut crawler).await;
+	// running scanner
     /* if let Err(e) = scanner::run(target_url).await {
         eprintln!("💥 Scanner encountered an error: {}", e);
     } */
