@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // get the target URL as input.
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        println!("😈 SSRFdevil Error: Missing target URL\rUsage: SSRFdevil <url>");
+        println!("[😈] SSRFdevil Error: Missing target URL\rUsage: SSRFdevil <url>");
         process::exit(1);
     }
 
@@ -29,36 +29,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let target_url = match Url::parse(target_str) {
         Ok(url) => url,
         Err(e) => {
-            eprintln!("❌ Invalid URL format '{}': {}", target_str, e);
+            eprintln!("[❌] Invalid URL format '{}': {}", target_str, e);
             process::exit(1);
         }
     };
 
-    println!("🚀 Launching SSRFdevil for: {}", target_url);
+    println!("[🚀] Launching SSRFdevil for: {}", target_url);
     
     // load rules to sled
     let db = sled::open(paths::DB_PATH)?;
-    println!("--- Step 1: Synthesizing Directory ---");
+    println!("[!] Synthesizing rules Directory...");
     rule_engine::populate_rules_db(&db, paths::RULES_DIR)?;
 
-    // println!("\n--- Step 2: Listing Indexed Rules ---");
-    // RuleMgr::list_rules(&db);
-
     // ۴. تست انتخاب هوشمند و پیش‌فرض (Best Rule)
-    println!("--- Step 2: Smart Selection ---");
-    let initial_rule = rule_engine::get_default_rule(&db);
-    if let Some(ref rule) = initial_rule {
-        println!("🔥 System Auto-Selected Best Rule:");
-        rule_engine::display_rule(1, rule);
+    println!("[!] Default Selection by bypass tag, change rule range by 'use ipv4' or 'use all' for example.");
+    //let initial_rule = rule_engine::get_default_rule(&db); //only one rule selected
+    let initial_rules = rule_engine::search_rules(&db, "bypass");
+    
+    if !initial_rules.is_empty() {
+        println!("[🔥] System Auto-Selected bypass rules...");
+        rule_engine::display_result_rules(&initial_rules);
     } else {
-        println!("❌ No rules found in database.");
-	}
-
+        println!("[❌] No rules found in database.");
+    }
 	ua_engine::init();
 	let mut settings = console::Settings::default();
 	let engine = RequestEngine::new(EngineConfig::default());
 	let mut crawler = Crawler::new(engine);
-	console::run_interactive_console(&db, initial_rule, target_str, &mut settings, &mut crawler).await;
+	
+	console::run_interactive_console(&db, initial_rules, target_str, &mut settings, &mut crawler).await;
+
 	// running scanner
     /* if let Err(e) = scanner::run(target_url).await {
         eprintln!("💥 Scanner encountered an error: {}", e);
