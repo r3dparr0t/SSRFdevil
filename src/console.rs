@@ -37,7 +37,6 @@ pub struct Settings {
     pub ua_profile: UaProfile,
     pub timeout: i32,
     pub threads: i32,
-    pub batch_auto: bool, // true: اتوماتیک برود بعدی, false: گام به گام بپرسد
 }
 
 impl Default for Settings {
@@ -46,30 +45,27 @@ impl Default for Settings {
             ua_profile: UaProfile::Balanced,
             timeout: 5,
             threads: 10,
-            batch_auto: true, 
         }
     }
 }
 
-fn run_settings_menu(settings: &mut Settings, selected_rules: &[RuleFile]) {
+fn run_settings_menu(settings: &mut Settings) {
 	let stdin = io::stdin();
-
     loop {
         println!("\nCurrent Settings:");
         println!("        [1] User-Agent Profile    {}", settings.ua_profile.label());
         println!("        [2] Timeout               {}s", settings.timeout);
         println!("        [3] Threads               {}", settings.threads);
-        println!("        [4] Batch Advance Mode    {}", if settings.batch_auto { "Automatic" } else { "Step-by-Step (Interactive)" });
         println!("\nType setting number to change, or 'back' to return.");
 
         // نمایش پرامپت پویا متناسب با رول‌های فعال در بخش تنظیمات
+        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
         match selected_rules.len() {
             0 => print!("ssrfdevil [settings] > "),
             1 => print!("ssrfdevil ({}) [settings] > ", selected_rules[0].meta.id),
             n => print!("ssrfdevil (batch: {} rules) [settings] > ", n),
         }
         io::stdout().flush().unwrap();
-
         let mut input = String::new();
         if stdin.read_line(&mut input).is_err() { break; }
 
@@ -101,23 +97,6 @@ fn run_settings_menu(settings: &mut Settings, selected_rules: &[RuleFile]) {
                     }
                 }
             }
-            "4" => {
-                let current = &settings.batch_auto;
-                println!("\nRule Mode (Batch / Step-by-Step):");
-                println!("        {}[1] Auto, Bach mode", if *current { "* " } else { "  " });
-                println!("        {}[2] Step-by-Step, single mode", if !*current { "* " } else { "  " });
-                print!("\nSelect [1-2] > ");
-
-                io::stdout().flush().unwrap();
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
-                match input.trim() {
-                	"1" => { settings.batch_auto = true; }
-                	"2" => { settings.batch_auto = false; }
-                	_ => println!("[!] Invalid option."),
-                }
-                println!("[+] Batch advance mode updated to: {}", if settings.batch_auto { "Automatic" } else { "Step-by-Step" });
-            }
             "back" | "quit" | "exit" => break,
             _ => println!("[!] Unknown option."),
         }
@@ -145,14 +124,13 @@ fn select_ua_profile(settings: &mut Settings) {
 }
 
 pub async fn run_interactive_console(
-    db: &Db, 
-    initial_rules: Vec<RuleFile>,
+    db: &Db,
     target_url: &str,
     settings: &mut Settings,
     crawler: &mut Crawler,
 ) {
     let stdin = io::stdin();
-    let mut selected_rules: Vec<RuleFile> = initial_rules;
+    let mut selected_rules: Vec<RuleFile> = rule_engine::SELECTED_RULES.read().unwrap().clone();
     let mut last_results: Vec<RuleFile> = Vec::new();
 
     println!("\nSSRFdevil Interactive Console\nJust type 'run' and enjoy or 'help' for commands.\n");
@@ -178,7 +156,7 @@ pub async fn run_interactive_console(
         match cmd {
             "help" | "?" => print_help(),
             "settings" => {
-                run_settings_menu(settings, &selected_rules); 
+                run_settings_menu(settings); 
                 ua_engine::init();
             }
             "search" => {
@@ -198,19 +176,18 @@ pub async fn run_interactive_console(
                 }
                 if arg == "all" {
                     selected_rules = rule_engine::search_rules(db, "");
-                    settings.batch_auto = true;
                     println!("[+] Loaded ALL {} rules.", selected_rules.len());
                 } else if let Some(rules) = select_rule(db, arg, &last_results) {
                     selected_rules = rules;
-                    settings.batch_auto = selected_rules.len() > 1;
                     println!("[+] Selected {} rule(s).", selected_rules.len());
                     /*for r in &selected_rules {
                         println!("    → {} ({})", r.meta.name, r.meta.id);
                     }*/
                     rule_engine::display_result_rules(&selected_rules);
                 } else {
-                println!("[!] Rule not found.");
+                println!("[!] Rule not found. Search something FIRST!");
                 }
+                *rule_engine::SELECTED_RULES.write().unwrap() = selected_rules.clone();
             }
             "crawl" => {
                 println!("[*] Crawling {}...", target_url);
@@ -266,7 +243,7 @@ pub async fn run_interactive_console(
                     }
 
                     // چک کردن هندلینگ گام‌به‌گام (Interactive Step)
-                    if !settings.batch_auto && idx < selected_rules.len() - 1 {
+                    if !rule_engine::SELECTED_RULES.read().unwrap().len() > 1 && idx < selected_rules.len() - 1 {
                         print!("\nssrfdevil [batch-pause] > Press Enter for next rule, or type 'q' to abort: ");
                         io::stdout().flush().unwrap();
                         let mut proceed = String::new();
@@ -282,7 +259,7 @@ pub async fn run_interactive_console(
                 if !aborted { println!("\n[+] Batch scan execution completed."); }
             }
 
-            "info" => {
+            "info" | "show" => {
                 if arg.is_empty() {
                     if selected_rules.is_empty() { println!("[!] No rule active."); }
                     for r in &selected_rules { rule_engine::show_rule_details(r); }
@@ -292,6 +269,7 @@ pub async fn run_interactive_console(
             }
             "back" => {
                 selected_rules.clear();
+                rule_engine::SELECTED_RULES.write().unwrap().clear();
                 println!("[+] Batch queue cleared.");
             }
             "exit" | "quit" => {
@@ -324,11 +302,11 @@ fn print_help() {
         search <text>        Search database rules
         use <idx|id|all>     Select a single rule, or 'all' for Batch Scanning
         list                 Show all loaded rules
-        run / scan           Execute selected rule(s) over crawled targets
+        run /scan            Execute selected rule(s) over crawled targets
         crawl                Trigger deep target auditing
-        info <index|id>      Inspect specific rule parameters
+        info /show <idx|id>  Inspect specific rule parameters
         back                 Clear active rule/batch queue
         settings             Toggle UA profiles & Batch Modes (Auto/Step)
-        exit / quit          Terminate active terminal\n"
+        exit /quit           Terminate active terminal\n"
     );
 }

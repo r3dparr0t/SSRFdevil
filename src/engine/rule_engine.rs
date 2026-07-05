@@ -1,8 +1,13 @@
 use sled::{Batch, Db, IVec};
 //use serde::{Deserialize, Serialize};
-use std::{error::Error, fs};
+use std::{
+    sync::RwLock,
+    {error::Error, fs}
+};
 
 use crate::rule::RuleFile;
+
+pub static SELECTED_RULES: RwLock<Vec<RuleFile>> = RwLock::new(Vec::new());
 
 pub fn populate_rules_db(db: &Db, rules_path: &str) -> Result<(), Box<dyn Error>> {
     let mut batch = Batch::default();

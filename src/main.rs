@@ -43,12 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ۴. تست انتخاب هوشمند و پیش‌فرض (Best Rule)
     println!("[!] Default Selection by bypass tag, change rule range by 'use ipv4' or 'use all' for example.");
-    //let initial_rule = rule_engine::get_default_rule(&db); //only one rule selected
-    let initial_rules = rule_engine::search_rules(&db, "bypass");
+    *rule_engine::SELECTED_RULES.write().unwrap() = rule_engine::search_rules(&db, "bypass");
     
-    if !initial_rules.is_empty() {
+    if !rule_engine::SELECTED_RULES.read().unwrap().is_empty() {
         println!("[🔥] System Auto-Selected bypass rules...");
-        rule_engine::display_result_rules(&initial_rules);
+        rule_engine::display_result_rules(&rule_engine::SELECTED_RULES.read().unwrap());
     } else {
         println!("[❌] No rules found in database.");
     }
@@ -57,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let engine = RequestEngine::new(EngineConfig::default());
 	let mut crawler = Crawler::new(engine);
 	
-	console::run_interactive_console(&db, initial_rules, target_str, &mut settings, &mut crawler).await;
+	console::run_interactive_console(&db, target_str, &mut settings, &mut crawler).await;
 
 	// running scanner
     /* if let Err(e) = scanner::run(target_url).await {
