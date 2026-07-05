@@ -4,8 +4,13 @@ use std::{
  	collections::HashMap,
  	error::Error
 };
-//mod engine;
-use crate::engine::ua_engine;
+use reqwest::{Method, header::{HeaderMap, HeaderName, HeaderValue}};
+use crate::engine::{
+    ua_engine,
+    request_engine::RequestEngine,
+    request::RequestData,
+    response::ResponseData,
+};
 
 #[derive(Debug, Clone)]
 pub struct LuaPayload {
@@ -20,6 +25,28 @@ pub struct LuaPayload {
 // executing lua code part
 // ---------------------------------------------------
 
+
+pub async fn run_payload(
+    engine: &RequestEngine,
+    payload: LuaPayload,
+) -> Result<ResponseData, Box<dyn Error + Send + Sync>> {
+    let url = Url::parse(&payload.url)?;
+    let method = Method::from_bytes(payload.method.as_bytes())?;
+
+    let mut headers = HeaderMap::new();
+    for (k, v) in &payload.headers {
+        if let (Ok(name), Ok(value)) = (
+            HeaderName::from_bytes(k.as_bytes()),
+            HeaderValue::from_str(v),
+        ) {
+            headers.insert(name, value);
+        }
+    }
+
+    let body = payload.body.map(|b| b.into_bytes());
+    let req = RequestData { method, url, headers, body };
+    Ok(engine.send(req).await?)
+}
 
 pub fn execute_lua_bypass(
     script_source: &str,
@@ -68,7 +95,7 @@ pub fn execute_lua_bypass(
     if let Ok(method) = result.get::<_, String>("method") {
         payload.method = method.to_uppercase();
     }
-    ua_engine::init();
+    //ua_engine::init();
 
     // set the default ua
     payload.headers.insert("User-Agent".to_string(), ua_engine::next());

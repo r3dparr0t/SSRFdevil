@@ -54,9 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	ua_engine::init();
 	let mut settings = console::Settings::default();
 	let engine = RequestEngine::new(EngineConfig::default());
-	let mut crawler = Crawler::new(engine);
+	let mut crawler = Crawler::new(engine.clone());
 	
-	console::run_interactive_console(&db, target_str, &mut settings, &mut crawler).await;
+	console::run_interactive_console(&db, target_str, &mut settings, &mut crawler, &engine).await;
 
 	// running scanner
     /* if let Err(e) = scanner::run(target_url).await {

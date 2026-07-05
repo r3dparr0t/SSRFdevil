@@ -3,7 +3,7 @@ use sled::Db;
 use crate::{
     rule::RuleFile,
     executor,
-    engine::{ua_engine, rule_engine},
+    engine::{ua_engine, rule_engine, RequestEngine},
     crawler::crawler::Crawler
 };
 use url::Url;
@@ -128,6 +128,7 @@ pub async fn run_interactive_console(
     target_url: &str,
     settings: &mut Settings,
     crawler: &mut Crawler,
+    engine: &RequestEngine,
 ) {
     let stdin = io::stdin();
     let mut selected_rules: Vec<RuleFile> = rule_engine::SELECTED_RULES.read().unwrap().clone();
@@ -236,14 +237,17 @@ pub async fn run_interactive_console(
                     match res {
                         Ok(Ok(payload)) => {
                             println!("    [+] Generated URL: {}", payload.url);
-                            println!("    [*] Dispatching payload to target pipeline...");
+                            match executor::run_payload(engine, payload).await {
+                                Ok(resp) => println!("    [+] Response: {} ({} bytes)", resp.status, resp.body.len()),
+                                Err(e) => println!("    ❌ Request Error: {}", e),
+                            }
                         }
                         Ok(Err(lua_err)) => println!("    ❌ Lua Error: {}", lua_err),
                         Err(join_err) => println!("    ❌ Task Execution Panic: {}", join_err),
                     }
 
                     // چک کردن هندلینگ گام‌به‌گام (Interactive Step)
-                    if !rule_engine::SELECTED_RULES.read().unwrap().len() > 1 && idx < selected_rules.len() - 1 {
+                    if selected_rules.len() == 1 && idx < selected_rules.len() - 1 {
                         print!("\nssrfdevil [batch-pause] > Press Enter for next rule, or type 'q' to abort: ");
                         io::stdout().flush().unwrap();
                         let mut proceed = String::new();
