@@ -49,58 +49,40 @@ impl Default for Settings {
     }
 }
 
-fn run_settings_menu(settings: &mut Settings) {
-	let stdin = io::stdin();
-    loop {
-        println!("\nCurrent Settings:");
-        println!("        [1] User-Agent Profile    {}", settings.ua_profile.label());
-        println!("        [2] Timeout               {}s", settings.timeout);
-        println!("        [3] Threads               {}", settings.threads);
-        println!("\nType setting number to change, or 'back' to return.");
-
-        // نمایش پرامپت پویا متناسب با رول‌های فعال در بخش تنظیمات
-        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
-        match selected_rules.len() {
-            0 => print!("ssrfdevil [settings] > "),
-            1 => print!("ssrfdevil ({}) [settings] > ", selected_rules[0].meta.id),
-            n => print!("ssrfdevil (batch: {} rules) [settings] > ", n),
-        }
-        io::stdout().flush().unwrap();
-        let mut input = String::new();
-        if stdin.read_line(&mut input).is_err() { break; }
-
-        match input.trim() {
-            "1" => select_ua_profile(settings),
-            "2" => {
-                print!("Enter new timeout (seconds) > ");
-                io::stdout().flush().unwrap();
-                let mut t_input = String::new();
-                if io::stdin().read_line(&mut t_input).is_ok() {
-                    if let Ok(t) = t_input.trim().parse::<i32>() {
-                        settings.timeout = t;
-                        println!("[+] Timeout updated to {}s.", t);
-                    } else {
-                        println!("[!] Invalid number.");
-                    }
-                }
-            }
-            "3" => {
-                print!("Enter new thread count > ");
-                io::stdout().flush().unwrap();
-                let mut th_input = String::new();
-                if io::stdin().read_line(&mut th_input).is_ok() {
-                    if let Ok(th) = th_input.trim().parse::<i32>() {
-                        settings.threads = th;
-                        println!("[+] Threads updated to {}.", th);
-                    } else {
-                        println!("[!] Invalid number.");
-                    }
-                }
-            }
-            "back" | "quit" | "exit" => break,
-            _ => println!("[!] Unknown option."),
-        }
+async fn crawl(crawler: &mut Crawler, target: &str) {
+    if let Ok(base) = Url::parse(target) {
+        crawler.crawl(&base).await;
     }
+}
+
+fn shell_prompt(selected: &[RuleFile], extrashell: &str) -> String {
+    match selected.len() {
+        0 => format!("ssrfdevil {}> ", extrashell),
+        1 => format!("ssrfdevil ({}) {}> ", selected[0].meta.id, extrashell),
+        n => format!("ssrfdevil (batch: {} rules) {}> ", n, extrashell),
+    }
+}
+
+fn parse_command(input: &str) -> (&str, &str) {
+    let mut parts = input.trim().splitn(2, ' ');
+    (
+        parts.next().unwrap_or(""),
+        parts.next().unwrap_or(""),
+    )
+}
+
+fn prompt(prompt: impl AsRef<str>) -> String {
+    print!("{}", prompt.as_ref());
+    io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+
+    input.trim().to_owned()
+}
+
+fn prompt_i32(prompt_text: &str) -> Option<i32> {
+    prompt(prompt_text).parse().ok()
 }
 
 fn select_ua_profile(settings: &mut Settings) {
@@ -110,16 +92,49 @@ fn select_ua_profile(settings: &mut Settings) {
     println!("        {}[2] balanced        weight >= 30", if *current == UaProfile::Balanced { "* " } else { "  " });
     println!("        {}[3] full            all agents", if *current == UaProfile::Full { "* " } else { "  " });
 
-    print!("\nSelect [1-3] > ");
-    io::stdout().flush().unwrap();
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
+    let input = prompt("\nSelect [1-3] > ");
     match input.trim() {
         "1" => { settings.ua_profile = UaProfile::Conservative; println!("[+] Profile set to Conservative."); }
         "2" => { settings.ua_profile = UaProfile::Balanced; println!("[+] Profile set to Balanced."); }
         "3" => { settings.ua_profile = UaProfile::Full; println!("[+] Profile set to Full."); }
         _ => println!("[!] Invalid option."),
+    }
+}
+
+fn run_settings_menu(settings: &mut Settings) {
+    loop {
+        println!("\nCurrent Settings:");
+        println!("        [1] User-Agent Profile    {}", settings.ua_profile.label());
+        println!("        [2] Timeout               {}s", settings.timeout);
+        println!("        [3] Threads               {}", settings.threads);
+        println!("\nType setting number to change, or 'back' to return.");
+
+        // نمایش پرامپت پویا متناسب با رول‌های فعال در بخش تنظیمات
+        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
+        let input = prompt(&shell_prompt(&selected_rules, "[settings]" ));
+
+        match input.trim() {
+            "1" => select_ua_profile(settings),
+            "2" => {
+                if let Some(t) = prompt_i32("Enter new timeout (seconds) > ") {
+                    settings.timeout = t;
+                    println!("[+] Timeout updated to {}s.", t);
+                } else {
+                    println!("[!] Invalid number.");
+                }
+            }
+            "3" => {
+                if let Some(th) = prompt_i32("Enter new thread count > ") {
+                    settings.threads = th;
+                    println!("[+] Threads updated to {}.", th);
+                } else {
+                    println!("[!] Invalid number.");
+                }
+            }
+            "b" | "back" | "quit" | "exit" => break,
+        
+            _ => println!("[!] Unknown option."),
+        }
     }
 }
 
@@ -130,29 +145,14 @@ pub async fn run_interactive_console(
     crawler: &mut Crawler,
     engine: &RequestEngine,
 ) {
-    let stdin = io::stdin();
     let mut selected_rules: Vec<RuleFile> = rule_engine::SELECTED_RULES.read().unwrap().clone();
     let mut last_results: Vec<RuleFile> = Vec::new();
 
     println!("\nSSRFdevil Interactive Console\nJust type 'run' and enjoy or 'help' for commands.\n");
-
     loop {
-        // پرامپت پویا بر اساس تعداد رول‌های فعال
-        match selected_rules.len() {
-            0 => print!("ssrfdevil > "),
-            1 => print!("ssrfdevil ({}) > ", selected_rules[0].meta.id),
-            n => print!("ssrfdevil (batch: {} rules) > ", n),
-        }
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        if stdin.read_line(&mut input).is_err() { break; }
-        let input = input.trim();
+        let input = prompt(&shell_prompt(&selected_rules, ""));
         if input.is_empty() { continue; }
-
-        let parts: Vec<&str> = input.splitn(2, ' ').collect();
-        let cmd = parts[0];
-        let arg = parts.get(1).copied().unwrap_or("");
+        let (cmd, arg) = parse_command(&input);
 
         match cmd {
             "help" | "?" => print_help(),
@@ -165,7 +165,7 @@ pub async fn run_interactive_console(
                 rule_engine::display_result_rules(&last_results);
                 println!("[i] {} matching rule(s).", last_results.len());
             }
-            "list" => {
+            "list" | "ls" => {
                 last_results = rule_engine::search_rules(db, "");
                 rule_engine::display_result_rules(&last_results);
                 println!("[i] {} total rule(s).", last_results.len());
@@ -186,39 +186,35 @@ pub async fn run_interactive_console(
                     }*/
                     rule_engine::display_result_rules(&selected_rules);
                 } else {
-                println!("[!] Rule not found. Search something FIRST!");
+                println!("[!] Numeric selection requires an active search result. or maybe you used Invalid key.\nSo use 'search <text>' or simply just 'list' first.");
                 }
                 *rule_engine::SELECTED_RULES.write().unwrap() = selected_rules.clone();
             }
             "crawl" => {
                 println!("[*] Crawling {}...", target_url);
-                if let Ok(base) = Url::parse(target_url) {
-                    crawler.crawl(&base).await;
-                    if crawler.targets().is_empty() {
-                        println!("[!] No SSRF-prone targets found.");
-                    } else {
-                        println!("[+] Found {} target(s).", crawler.targets().len());
-                    }
+                crawl(crawler, target_url).await;
+                if crawler.targets().is_empty() {
+                    println!("[!] No SSRF-prone targets found.");
+                } else {
+                    println!("[+] Found {} target(s).", crawler.targets().len());
                 }
             }
             "run" | "scan" => {
                 if selected_rules.is_empty() {
-                    println!("[!] No rule(s) selected. Use 'use <id|all>' first.");
+                    println!("[!] No rule(s) selected. Use 'use <id|idx|tag|all>' first.");
                     continue;
                 }
 
                 if crawler.targets().is_empty() {
                     println!("[*] Meh, seems like you forgot I can crawl too...\n[*] Give me a sec.");
-                    if let Ok(base) = Url::parse(target_url) {
-                        crawler.crawl(&base).await;
-                    }
+                    crawl(crawler, target_url).await;
+                    
                     if crawler.targets().is_empty() {
                         println!("[!] Still nothing. Too clean or too stubborn.");
                         continue;
                     }
-                    println!("[+] Got {} target(s). Now we're talking.", crawler.targets().len());
                 }
-
+                println!("[+] Got {} target(s). Now we're talking.", crawler.targets().len());
                     
                 let mut aborted = false;
                 for (idx, rule) in selected_rules.iter().enumerate() {
@@ -247,18 +243,13 @@ pub async fn run_interactive_console(
                     }
 
                     // چک کردن هندلینگ گام‌به‌گام (Interactive Step)
-                    if selected_rules.len() == 1 && idx < selected_rules.len() - 1 {
-                        print!("\nssrfdevil [batch-pause] > Press Enter for next rule, or type 'q' to abort: ");
-                        io::stdout().flush().unwrap();
-                        let mut proceed = String::new();
-                        if io::stdin().read_line(&mut proceed).is_ok() {
-                            if proceed.trim() == "q" {
+                        if selected_rules.len() > 1 && idx < selected_rules.len() - 1 {
+                        let next = prompt("\nssrfdevil [batch-pause] > Press Enter for next rule, or type 'q' to abort: " );
+                            if next == "q" {
                                 aborted = true;
-                                println!("[!] Batch scanning aborted by user.");
                                 break;
                             }
                         }
-                    }
                 }
                 if !aborted { println!("\n[+] Batch scan execution completed."); }
             }
@@ -271,7 +262,7 @@ pub async fn run_interactive_console(
                         for r in &rules { rule_engine::show_rule_details(r); }
                 }
             }
-            "back" => {
+            "back" | "b" => {
                 selected_rules.clear();
                 rule_engine::SELECTED_RULES.write().unwrap().clear();
                 println!("[+] Batch queue cleared.");
@@ -302,14 +293,13 @@ fn select_rule(db: &Db, input: &str, last_results: &[RuleFile]) -> Option<Vec<Ru
 fn print_help() {
     println!(
         "\nCommands:
-        url                  Change target base URL
         search <text>        Search database rules
-        use <idx|id|all>     Select a single rule, or 'all' for Batch Scanning
-        list                 Show all loaded rules
+        use <idx|id|all>     Select a single rule, or 'all|tag' for Batch Scanning
+        list /ls             Show all loaded rules
         run /scan            Execute selected rule(s) over crawled targets
         crawl                Trigger deep target auditing
         info /show <idx|id>  Inspect specific rule parameters
-        back                 Clear active rule/batch queue
+        back /b              Clear active rule/batch queue
         settings             Toggle UA profiles & Batch Modes (Auto/Step)
         exit /quit           Terminate active terminal\n"
     );
