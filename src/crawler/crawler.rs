@@ -7,7 +7,7 @@ use crate::engine::{
 	request::RequestData
 };
 use reqwest::{Method,header::HeaderMap};
-
+use crate::crawler::crawler_targets::{Target, TargetKind};
 // پارامترهایی که احتمال SSRF دارن
 const SSRF_PARAMS: &[&str] = &[
     "url", "dest", "redirect", "next", "path",
@@ -35,7 +35,8 @@ const SELECTORS: &[(&str, &str, bool)] = &[
 pub struct Crawler {
     engine: RequestEngine,
     visited: HashSet<Url>,
-    targets: Vec<Url>,
+    //targets: Vec<Url>,
+    targets: Vec<Target>,
 }
 
 impl Crawler {
@@ -47,15 +48,29 @@ impl Crawler {
         }
     }
 
-    pub fn targets(&self) -> &[Url] {
+    pub fn targets(&self) -> &[Target] {
         &self.targets
     }
 
-    pub fn targets_mut(&mut self) -> &mut Vec<Url> {
+    pub fn targets_mut(&mut self) -> &mut Vec<Target> {
         &mut self.targets
     }
+
+    pub fn target_urls(&self) -> Vec<Url> {
+        self.targets
+            .iter()
+            .map(|t| t.url.clone())
+            .collect()
+    }
+
+    pub fn urls(&self) -> Vec<Url> {
+        self.targets
+            .iter()
+            .map(|t| t.url.clone())
+            .collect()
+    }
     
-    pub async fn crawl(&mut self, target: &Url) -> Vec<Url> {
+    pub async fn crawl(&mut self, target: &Url) -> Vec<Target> {
         if self.visited.contains(target) {
             return vec![];
         }
@@ -86,13 +101,13 @@ impl Crawler {
     }
 
 
-    fn extract_targets(&mut self, html: &str, base: &Url) {
+    fn extract_targets(&mut self, html: &str, url: &Url) {
         //self.targets.clear();
         let document = Html::parse_document(html);
         for (selector, attr, ssrf) in SELECTORS {
             self.extract_items(
                 &document,
-                base,
+                url,
                 selector,
                 attr,
                 *ssrf,
@@ -118,8 +133,13 @@ impl Crawler {
                         continue;
                     }
                 
-                    if !self.targets.contains(&url) {
-                        self.targets.push(url);
+                    if !self.targets.iter().any(|t| t.url == url) {
+                        //self.targets.push(url);
+                        self.targets.push(Target {
+                            url: url.clone(),
+                            kind: TargetKind::Get,
+                            params: Vec::new(),
+                        });
                     }
                 }
             }
