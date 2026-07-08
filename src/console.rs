@@ -61,22 +61,32 @@ fn select_ua_profile(settings: &mut Settings) {
     }
 }
 
-fn run_settings_menu(settings: &mut Settings) {
+fn run_settings_menu() {
     loop {
+        // خواندن مقادیر به صورت ایمن و لوکال برای نمایش
+        let (ua_label, timeout, threads) = {
+            let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
+            (settings.ua_profile.label().to_string(), settings.timeout, settings.threads)
+        };
+
         println!("\nCurrent Settings:");
-        println!("        [1] User-Agent Profile    {}", settings.ua_profile.label());
-        println!("        [2] Timeout               {}s", settings.timeout);
-        println!("        [3] Threads               {}", settings.threads);
+        println!("        [1] User-Agent Profile    {}", ua_label);
+        println!("        [2] Timeout               {}s", timeout);
+        println!("        [3] Threads               {}", threads);
         println!("\nType setting number to change, or 'back' to return.");
 
-        // نمایش پرامپت پویا متناسب با رول‌های فعال در بخش تنظیمات
         let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
         let input = prompt(&shell_prompt(&selected_rules, "[settings]" ));
 
         match input.trim() {
-            "1" => select_ua_profile(settings),
+            "1" => {
+                // کدهای تغییر پروفایل را داخل یک کلوژر قفل‌شونده باز می‌کنیم
+                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                select_ua_profile(&mut settings);
+            },
             "2" => {
                 if let Some(t) = prompt_i32("Enter new timeout (seconds) > ") {
+                    let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
                     settings.timeout = t;
                     println!("[+] Timeout updated to {}s.", t);
                 } else {
@@ -84,15 +94,15 @@ fn run_settings_menu(settings: &mut Settings) {
                 }
             }
             "3" => {
-                if let Some(th) = prompt_i32("Enter new thread count > ") {
-                    settings.threads = th;
-                    println!("[+] Threads updated to {}.", th);
+                if let Some(t) = prompt_i32("Enter new threads count > ") {
+                    let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                    settings.threads = t; // اصلاح فیلد تایم‌اوت به ترد
+                    println!("[+] Threads updated to {}.", t);
                 } else {
                     println!("[!] Invalid number.");
                 }
             }
             "b" | "back" | "quit" | "exit" => break,
-        
             _ => println!("[!] Unknown option."),
         }
     }
@@ -101,7 +111,6 @@ fn run_settings_menu(settings: &mut Settings) {
 pub async fn run_interactive_console(
     db: &Db,
     target_url: &str,
-    settings: &mut Settings,
     crawler: &mut Crawler,
     engine: &RequestEngine,
 ) {
@@ -117,7 +126,7 @@ pub async fn run_interactive_console(
         match cmd {
             "help" | "?" => print_help(),
             "settings" => {
-                run_settings_menu(settings); 
+                run_settings_menu(); 
                 ua_engine::init();
             }
             "search" => {

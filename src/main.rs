@@ -11,7 +11,7 @@ use ssrfdevil::{
 		RequestEngine,
 		EngineConfig
 	},
-	config::Settings
+	config
 };
 
 // تابع اول: فقط پارس متنی و اصلاح ساختار URL
@@ -98,13 +98,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // init user profile engine.
 	ua_engine::init();
-	 
-	let mut settings = Settings::default();
-	let mut engine_config = EngineConfig::default();
-    // می‌توانی مقدار تایم‌اوت موتور را با متغیر تنظیمات عمومی هماهنگ کنی:
-    engine_config.timeout = std::time::Duration::from_secs(settings.timeout as u64);
+	config::init_global_settings();
+	let timeout_secs = {
+        let settings = config::APP_SETTINGS.get().unwrap().read().unwrap();
+        settings.timeout as u64
+    };
+    
+    let mut engine_config = EngineConfig::default();
+    engine_config.timeout = std::time::Duration::from_secs(timeout_secs);
+    
     let engine = RequestEngine::new(engine_config);
     let mut crawler = Crawler::new(engine.clone());
-    console::run_interactive_console(&db, target_url.as_str(), &mut settings, &mut crawler, &engine).await;
-    Ok(())
+
+    // ۳. حالا بدون پاس دادن settings، کنسول را صدا می‌زنی!
+    console::run_interactive_console(&db, target_url.as_str(), &mut crawler, &engine).await;
+
+	Ok(())
 }

@@ -1,4 +1,6 @@
 //config.rs
+use std::sync::{OnceLock, RwLock};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum UaProfile {
     Conservative, 
@@ -39,3 +41,15 @@ impl Default for Settings {
         }
     }
 }
+
+
+// همان امضاها و تعاریف قبلی Settings و UaProfile اینجا می‌مانند...
+
+// تعریف تک‌نسخه‌ای و استاتیک از تنظیمات کل پروژه
+pub static APP_SETTINGS: OnceLock<RwLock<Settings>> = OnceLock::new();
+
+// یک تابع کمکی برای دسترسی راحت‌تر به تنظیمات در سراسر پروژه
+pub fn init_global_settings() {
+    APP_SETTINGS.get_or_init(|| RwLock::new(Settings::default()));
+}
+
