@@ -18,7 +18,7 @@ const SSRF_PARAMS: &[&str] = &[
 
 const SELECTORS: &[(&str, &str, bool)] = &[
     ("a[href]", "href", true),
-    ("form[action]", "action", true),
+    // ("form[action]", "action", true),
     ("img[src]", "src", false),
     ("iframe[src]", "src", false),
     ("script[src]", "src", false),
@@ -99,7 +99,40 @@ impl Crawler {
         self.targets.clone()
         //self.extract_ssrf_targets(&html, target)
     }
-
+    
+    fn extract_forms(&mut self, doc: &Html, base: &Url) {
+        let form_sel = Selector::parse("form").unwrap();
+        let input_sel = Selector::parse("input, textarea, select").unwrap();
+    
+        for form in doc.select(&form_sel) {
+            let action = form.value().attr("action").unwrap_or("");
+            let method = form.value().attr("method")
+                .unwrap_or("get")
+                .to_uppercase();
+    
+            let Ok(url) = base.join(action) else { continue };
+    
+            // پارامترها
+            let params: Vec<String> = form
+                .select(&input_sel)
+                .filter_map(|i| i.value().attr("name"))
+                .filter(|name| SSRF_PARAMS.contains(name))
+                .map(|s| s.to_string())
+                .collect();
+    
+            if params.is_empty() { continue; }
+    
+            if !self.targets.iter().any(|t| t.url == url) {
+                self.targets.push(Target {
+                    url,
+                    kind: TargetKind::Form,
+                    method,
+                    params,
+                    source: "form".to_string(),
+                });
+            }
+        }
+    }
 
     fn extract_targets(&mut self, html: &str, url: &Url) {
         //self.targets.clear();
@@ -113,6 +146,7 @@ impl Crawler {
                 *ssrf,
             );
         }
+        self.extract_forms(&document, url);
     }
     
     fn extract_items(
@@ -134,11 +168,15 @@ impl Crawler {
                     }
                 
                     if !self.targets.iter().any(|t| t.url == url) {
-                        //self.targets.push(url);
                         self.targets.push(Target {
                             url: url.clone(),
                             kind: TargetKind::Get,
-                            params: Vec::new(),
+                            method: "GET".to_string(),
+                            params: url.query_pairs()
+                                .filter(|(k, _)| SSRF_PARAMS.contains(&k.as_ref()))
+                                .map(|(k, _)| k.to_string())
+                                .collect(),
+                            source: attr.to_string(),
                         });
                     }
                 }

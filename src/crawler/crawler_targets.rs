@@ -16,9 +16,12 @@ pub enum TargetKind {
     Sitemap,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Target {
     pub url: Url,
     pub kind: TargetKind,
+    pub method: String,
     pub params: Vec<String>,
+    pub source: String,
+    // pub confidence: u8,
 }
