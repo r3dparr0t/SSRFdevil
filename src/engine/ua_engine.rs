@@ -4,7 +4,7 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use rand::distr::{Distribution, weighted::WeightedIndex};
 use crate::{
     paths,
-    console
+    config::Settings
 };
 use std::{
     fs,
@@ -59,7 +59,7 @@ fn get_random_weighted_ua(ua_list: &[UaEntry]) -> String {
 static UA_LIST: RwLock<Vec<UaEntry>> = RwLock::new(Vec::new());
 
 pub fn init() {
-	let settings = console::Settings::default(); 
+	let settings = Settings::default(); 
     let list = load_user_agents(settings.ua_profile.min_weight());
     *UA_LIST.write().unwrap() = list;
 }

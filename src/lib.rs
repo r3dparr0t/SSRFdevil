@@ -4,3 +4,4 @@ pub mod paths;
 pub mod rule;
 pub mod executor;
 pub mod console;
+pub mod config;

@@ -1,7 +1,6 @@
 use std::process;
 use std::time::Duration;
 use url::Url;
-// mod scanner;
 use ssrfdevil::{
 	crawler::crawler::Crawler,
 	console,
@@ -11,7 +10,8 @@ use ssrfdevil::{
 		rule_engine,
 		RequestEngine,
 		EngineConfig
-	}
+	},
+	config::Settings
 };
 
 // تابع اول: فقط پارس متنی و اصلاح ساختار URL
@@ -31,25 +31,36 @@ fn parse_url(target: &str) -> Url {
         }
     }
 }
-
-// تابع دوم: فرستادن ریکوئست واقعی و سنجش زنده بودن هدف (ناهمگام)
-async fn validate_target_alive(url: &Url) -> Result<(), reqwest::Error> {
+// ورودی به `&mut Url` تغییر کرد تا بتوانی آدرس اصلی را درون تابع تغییر دهی
+async fn validate_target_alive(url: &mut Url) -> Result<(), reqwest::Error> {
     println!("[🔍] Checking if target is alive...");
     
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(4)) // ۴ ثانیه تایم‌اوت
+        .timeout(Duration::from_secs(4))
+        .redirect(reqwest::redirect::Policy::limited(5))
         .build()?;
 
-    match client.get(url.as_str()).send().await {
-        Ok(response) => {
-            println!("[✅] Target is alive! Status: {}", response.status());
-            Ok(())
-        }
-        Err(_e) => {
-            println!("[👋] Nice try but this url is not valid or alive, try again!");
-            process::exit(1);
+    // تست اول با آدرس فعلی
+    if client.get(url.as_str()).send().await.is_ok() {
+        println!("[✅] Target is alive!");
+        return Ok(());
+    }
+
+    // اگر خط داد و پروتکل http بود، پروتکلِ خودِ آدرس اصلی را به https تغییر می‌دهیم
+    if url.scheme() == "http" {
+        println!("[🔄] HTTP failed, retrying with HTTPS...");
+        if url.set_scheme("https").is_ok() {
+            // حالا با آدرس آپدیت شده (https) تست می‌کنیم
+            if client.get(url.as_str()).send().await.is_ok() {
+                println!("[✅] Target is alive via HTTPS! URL updated.");
+                return Ok(());
+            }
         }
     }
+
+    // اگر هیچ‌کدام جواب ندادند
+    println!("[👋] nice try but this url is not valid or alive, try again!");
+    process::exit(1);
 }
 
 #[tokio::main]
@@ -62,10 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // ۱. پارس کردن متنی آدرس
-    let target_url = parse_url(&args[1]);
+    let mut target_url = parse_url(&args[1]);
 
     // ۲. بررسی زنده بودن آدرس از طریق تابع مجزا (باید .await بشه)
-    validate_target_alive(&target_url).await?;
+    validate_target_alive(&mut target_url).await?;
 
     // ۳. ادامه برنامه در صورت زنده بودن هدف
     println!("[🚀] Launching SSRFdevil for: {}", target_url);
@@ -85,12 +96,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("[❌] No rules found in database.");
     }
+    // init user profile engine.
 	ua_engine::init();
-	let mut settings = console::Settings::default();
-	let engine = RequestEngine::new(EngineConfig::default());
-	let mut crawler = Crawler::new(engine.clone());
-	
-	console::run_interactive_console(&db, target_url.as_str(), &mut settings, &mut crawler, &engine).await;
-
+	 
+	let mut settings = Settings::default();
+	let mut engine_config = EngineConfig::default();
+    // می‌توانی مقدار تایم‌اوت موتور را با متغیر تنظیمات عمومی هماهنگ کنی:
+    engine_config.timeout = std::time::Duration::from_secs(settings.timeout as u64);
+    let engine = RequestEngine::new(engine_config);
+    let mut crawler = Crawler::new(engine.clone());
+    console::run_interactive_console(&db, target_url.as_str(), &mut settings, &mut crawler, &engine).await;
     Ok(())
 }
