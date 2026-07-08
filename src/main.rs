@@ -1,4 +1,5 @@
 use std::process;
+use std::time::Duration;
 use url::Url;
 // mod scanner;
 use ssrfdevil::{
@@ -13,9 +14,46 @@ use ssrfdevil::{
 	}
 };
 
+// تابع اول: فقط پارس متنی و اصلاح ساختار URL
+fn parse_url(target: &str) -> Url {
+    let trimmed_target = target.trim();
+    let sanitized_str = if trimmed_target.starts_with("http://") || trimmed_target.starts_with("https://") {
+        trimmed_target.to_string()
+    } else {
+        format!("http://{}", trimmed_target)
+    };
+
+    match Url::parse(&sanitized_str) {
+        Ok(url) => url,
+        Err(e) => {
+            eprintln!("[❌] Invalid URL format '{}': {}", target, e);
+            process::exit(1);
+        }
+    }
+}
+
+// تابع دوم: فرستادن ریکوئست واقعی و سنجش زنده بودن هدف (ناهمگام)
+async fn validate_target_alive(url: &Url) -> Result<(), reqwest::Error> {
+    println!("[🔍] Checking if target is alive...");
+    
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(4)) // ۴ ثانیه تایم‌اوت
+        .build()?;
+
+    match client.get(url.as_str()).send().await {
+        Ok(response) => {
+            println!("[✅] Target is alive! Status: {}", response.status());
+            Ok(())
+        }
+        Err(_e) => {
+            println!("[👋] Nice try but this url is not valid or alive, try again!");
+            process::exit(1);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // خروجی تابع اصلاح شد
     // get the target URL as input.
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
@@ -23,17 +61,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         process::exit(1);
     }
 
-    let target_str = &args[1];
+    // ۱. پارس کردن متنی آدرس
+    let target_url = parse_url(&args[1]);
 
-    // parse URL correction
-    let target_url = match Url::parse(target_str) {
-        Ok(url) => url,
-        Err(e) => {
-            eprintln!("[❌] Invalid URL format '{}': {}", target_str, e);
-            process::exit(1);
-        }
-    };
+    // ۲. بررسی زنده بودن آدرس از طریق تابع مجزا (باید .await بشه)
+    validate_target_alive(&target_url).await?;
 
+    // ۳. ادامه برنامه در صورت زنده بودن هدف
     println!("[🚀] Launching SSRFdevil for: {}", target_url);
     
     // load rules to sled
@@ -56,12 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let engine = RequestEngine::new(EngineConfig::default());
 	let mut crawler = Crawler::new(engine.clone());
 	
-	console::run_interactive_console(&db, target_str, &mut settings, &mut crawler, &engine).await;
+	console::run_interactive_console(&db, target_url.as_str(), &mut settings, &mut crawler, &engine).await;
 
-	// running scanner
-    /* if let Err(e) = scanner::run(target_url).await {
-        eprintln!("💥 Scanner encountered an error: {}", e);
-    } */
-
-    Ok(()) // اضافه کردن پایان موفقیت‌آمیز تابع
+    Ok(())
 }
