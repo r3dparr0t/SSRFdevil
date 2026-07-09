@@ -1,6 +1,5 @@
 use std::io::{self, Write};
 use sled::Db;
-use url::Url;
 use crate::{
     rule::RuleFile,
     executor,
@@ -8,12 +7,7 @@ use crate::{
     crawler::crawler::Crawler,
     config::{Settings, UaProfile} // دریافت مستقیم از ماژول کانفیگ مرکزی
 };
-
-async fn crawl(crawler: &mut Crawler, target: &str) {
-    if let Ok(base) = Url::parse(target) {
-        crawler.crawl(&base).await;
-    }
-}
+use std::sync::Arc;
 
 fn shell_prompt(selected: &[RuleFile], extrashell: &str) -> String {
     match selected.len() {
@@ -111,7 +105,7 @@ fn run_settings_menu() {
 pub async fn run_interactive_console(
     db: &Db,
     target_url: &str,
-    crawler: &mut Crawler,
+    crawler: Arc<Crawler>,      // <-- Arc مستقیم
     engine: &RequestEngine,
 ) {
     let mut selected_rules: Vec<RuleFile> = rule_engine::SELECTED_RULES.read().unwrap().clone();
@@ -161,11 +155,12 @@ pub async fn run_interactive_console(
             }
             "crawl" => {
                 println!("[*] Crawling {}...", target_url);
-                crawl(crawler, target_url).await;
-                if crawler.targets().is_empty() {
+                crawler.run().await;                          // <-- مستقیماً روی Arc صدا می‌شه
+                let targets = crawler.targets().await;
+                if targets.is_empty() {
                     println!("[!] No SSRF-prone targets found.");
                 } else {
-                    println!("[+] Found {} target(s).", crawler.targets().len());
+                    println!("[+] Found {} target(s).", targets.len());
                 }
             }
             "run" | "scan" => {
@@ -174,17 +169,18 @@ pub async fn run_interactive_console(
                     continue;
                 }
 
-                if crawler.targets().is_empty() {
+                if crawler.targets().await.is_empty() {
                     println!("[*] Meh, seems like you forgot I can crawl too...\n[*] Give me a sec.");
-                    crawl(crawler, target_url).await;
+                    crawler.run().await;
                     
-                    if crawler.targets().is_empty() {
+                    if crawler.targets().await.is_empty() {
                         println!("[!] Still nothing. Too clean or too stubborn.");
                         continue;
                     }
                 }
-                println!("[+] Got {} target(s). Now we're talking.", crawler.targets().len());
-                    
+                //println!("[+] Got {} target(s). Now we're talking.", crawler.targets().len());
+                println!("[+] Got {} target(s). Now we're talking.", crawler.targets().await.len());
+                                                                                           
                 let mut aborted = false;
                 for (idx, rule) in selected_rules.iter().enumerate() {
                     println!("\n🚀 [{}/{}] Running: {} ({})", idx + 1, selected_rules.len(), rule.meta.name, rule.meta.id);

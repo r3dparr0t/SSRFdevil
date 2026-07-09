@@ -105,14 +105,19 @@ impl RequestEngine {
 
         // شلیک نهایی
         let response = builder.send().await?;
-
-        // ساخت ResponseData جهت خروجی کپسوله شده
+        
+        let final_url = response.url().clone();   // ← این خط رو اضافه کن
+        
         let status = response.status().as_u16();
         let headers = response.headers().clone();
         let body = response.bytes().await?.to_vec();
-
-        let res_data = ResponseData { status, headers, body };
-
+        
+        let res_data = ResponseData {
+            url: final_url,           // ← اینم اضافه کن
+            status,
+            headers,
+            body,
+        };
         // ۴. Trace After
         if self.config.trace {
             trace_engine::after(&res_data);

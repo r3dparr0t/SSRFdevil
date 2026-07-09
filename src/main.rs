@@ -2,7 +2,7 @@ use std::process;
 use std::time::Duration;
 use url::Url;
 use ssrfdevil::{
-	crawler::crawler::Crawler,
+	crawler::crawler::{Crawler,CrawlerConfig},
 	console,
 	paths,
 	engine::{
@@ -13,6 +13,7 @@ use ssrfdevil::{
 	},
 	config
 };
+use std::sync::Arc;
 
 // تابع اول: فقط پارس متنی و اصلاح ساختار URL
 fn parse_url(target: &str) -> Url {
@@ -59,7 +60,7 @@ async fn validate_target_alive(url: &mut Url) -> Result<(), reqwest::Error> {
     }
 
     // اگر هیچ‌کدام جواب ندادند
-    println!("[👋] nice try but this url is not valid or alive, try again!");
+    println!("[👋] Nice try but this url is not valid or alive, try again!");
     process::exit(1);
 }
 
@@ -108,10 +109,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine_config.timeout = std::time::Duration::from_secs(timeout_secs);
     
     let engine = RequestEngine::new(engine_config);
-    let mut crawler = Crawler::new(engine.clone());
+    //let mut crawler = Crawler::new(engine.clone())
+    // قبلاً:
+    // let mut crawler = Crawler::new(engine.clone());
+    
+    // جدید:
+    let crawler_config = CrawlerConfig {
+        seed_urls: vec![target_url.clone()],
+        max_depth: 3,                         // هر عمقی خواستی
+        max_concurrent_requests: 10,          // تعداد هم‌زمانی
+        allowed_domains: vec![],             // فقط دامنهٔ seed
+    };
 
-    // ۳. حالا بدون پاس دادن settings، کنسول را صدا می‌زنی!
-    console::run_interactive_console(&db, target_url.as_str(), &mut crawler, &engine).await;
-
+    let crawler = Arc::new(Crawler::new(engine.clone(), crawler_config));
+    console::run_interactive_console(&db, target_url.as_str(), crawler, &engine).await;
+    
 	Ok(())
 }
