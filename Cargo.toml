@@ -16,11 +16,11 @@ reqwest = { version = "0.12", features = ["json", "cookies", "gzip", "brotli", "
 #lonkero = "3.6.6" 
 #attackstr = "0.2.0"
 #wafrift-oracle = "0.2.15"
+scopeguard = "1.2"
 scraper = "0.20"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1.0"
 sled = "0.34.7"
-#url = "2.5.8"
-# Cargo.toml
 url = { version = "2.5.8", features = ["serde"] }
+regex = "1.13.0"

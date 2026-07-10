@@ -30,7 +30,7 @@ const SSRF_PARAMS: &[&str] = &[
 
 pub struct SelectorRule {
     pub selector: &'static str,
-    pub attr: &'static str,
+    pub attrs: &'static [&'static str], // پشتیبانی از چند اتریبیوت برای یک تگ
     pub check_ssrf: bool,
     pub source: DiscoverySource,
     pub kind: TargetKind,
@@ -39,65 +39,98 @@ pub struct SelectorRule {
 }
 
 const SELECTORS: &[SelectorRule] = &[
+    // --- ۱. قوانین اختصاصی و دقیق خودت (بدون کم و کسر) ---
     SelectorRule {
-        selector: "a[href]", attr: "href", check_ssrf: true,
+        selector: "a[href]", attrs: &["href", "data-href", "data-url"], check_ssrf: true,
         source: DiscoverySource::Link, kind: TargetKind::Endpoint,
         tags: Some(&[TargetTag::Link]), confidence: Some(80),
     },
     SelectorRule {
-        selector: "img[src]", attr: "src", check_ssrf: false,
+        selector: "img[src]", attrs: &["src", "data-src"], check_ssrf: false,
         source: DiscoverySource::Image, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Image]), confidence: Some(90),
     },
     SelectorRule {
-        selector: "iframe[src]", attr: "src", check_ssrf: false,
+        selector: "iframe[src]", attrs: &["src"], check_ssrf: false,
         source: DiscoverySource::Iframe, kind: TargetKind::Document,
         tags: Some(&[TargetTag::Iframe]), confidence: Some(90),
     },
     SelectorRule {
-        selector: "script[src]", attr: "src", check_ssrf: false,
+        selector: "script[src]", attrs: &["src"], check_ssrf: false,
         source: DiscoverySource::Script, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Js]), confidence: Some(60),
     },
     SelectorRule {
-        selector: "video[src]", attr: "src", check_ssrf: false,
+        selector: "video[src]", attrs: &["src", "data-src"], check_ssrf: false,
         source: DiscoverySource::Link, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Video]), confidence: Some(90),
     },
     SelectorRule {
-        selector: "audio[src]", attr: "src", check_ssrf: false,
+        selector: "audio[src]", attrs: &["src", "data-src"], check_ssrf: false,
         source: DiscoverySource::Link, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Audio]), confidence: Some(80),
     },
     SelectorRule {
-        selector: "source[src]", attr: "src", check_ssrf: false,
+        selector: "source[src]", attrs: &["src"], check_ssrf: false,
         source: DiscoverySource::Link, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Media]), confidence: Some(70),
     },
     SelectorRule {
-        selector: "embed[src]", attr: "src", check_ssrf: false,
+        selector: "embed[src]", attrs: &["src"], check_ssrf: false,
         source: DiscoverySource::Embed, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Media]), confidence: Some(70),
     },
     SelectorRule {
-        selector: "object[data]", attr: "data", check_ssrf: false,
+        selector: "object[data]", attrs: &["data"], check_ssrf: false,
         source: DiscoverySource::Object, kind: TargetKind::Resource,
         tags: Some(&[TargetTag::Media]), confidence: Some(70),
     },
     SelectorRule {
-        selector: "link[href]", attr: "href", check_ssrf: false,
+        selector: "link[href]", attrs: &["href"], check_ssrf: false,
         source: DiscoverySource::Link, kind: TargetKind::Resource,
         tags: None, confidence: None,
     },
     SelectorRule {
-        selector: "input[formaction]", attr: "formaction", check_ssrf: false,
+        selector: "form[action]", attrs: &["action"], check_ssrf: false,
         source: DiscoverySource::Form, kind: TargetKind::Endpoint,
         tags: Some(&[TargetTag::Form]), confidence: Some(100),
     },
     SelectorRule {
-        selector: "button[formaction]", attr: "formaction", check_ssrf: false,
+        selector: "input[formaction]", attrs: &["formaction"], check_ssrf: false,
         source: DiscoverySource::Form, kind: TargetKind::Endpoint,
         tags: Some(&[TargetTag::Form]), confidence: Some(100),
+    },
+    SelectorRule {
+        selector: "button[formaction]", attrs: &["formaction"], check_ssrf: false,
+        source: DiscoverySource::Form, kind: TargetKind::Endpoint,
+        tags: Some(&[TargetTag::Form]), confidence: Some(100),
+    },
+
+    // --- ۲. پوشش کامل تگ‌های عمومی (برای مواردی که تگ‌ها استاندارد نیستند) ---
+    SelectorRule {
+        selector: "[data-url], [data-href]", attrs: &["data-url", "data-href"], check_ssrf: true,
+        source: DiscoverySource::Link, kind: TargetKind::Endpoint,
+        tags: Some(&[TargetTag::Link]), confidence: Some(70),
+    },
+    SelectorRule {
+        selector: "[data-src]", attrs: &["data-src"], check_ssrf: false,
+        source: DiscoverySource::Link, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Link]), confidence: Some(60),
+    },
+    SelectorRule {
+        selector: "[href]:not(a):not(link)", attrs: &["href"], check_ssrf: true,
+        source: DiscoverySource::Link, kind: TargetKind::Endpoint,
+        tags: Some(&[TargetTag::Link]), confidence: Some(60),
+    },
+    SelectorRule {
+        selector: "[src]:not(img):not(script):not(iframe):not(video):not(audio):not(source):not(embed)", attrs: &["src"], check_ssrf: false,
+        source: DiscoverySource::Link, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Link]), confidence: Some(50),
+    },
+    SelectorRule {
+        selector: "[action]:not(form)", attrs: &["action"], check_ssrf: false,
+        source: DiscoverySource::Form, kind: TargetKind::Endpoint,
+        tags: Some(&[TargetTag::Form]), confidence: Some(70),
     },
 ];
 
@@ -180,35 +213,62 @@ impl Crawler {
     fn extract_links(&self, html: &str, base: &Url) -> Vec<Url> {
         let document = Html::parse_document(html);
         let allowed = self.allowed_domains_set();
-        let mut links = Vec::new();
+        let mut unique_links = HashSet::new();
 
+        // ۱. استخراج ساختارمند بر اساس سلکتورهای توسعه‌یافته
         for rule in SELECTORS {
             let Ok(sel) = Selector::parse(rule.selector) else { continue };
             for node in document.select(&sel) {
-                if let Some(value) = node.value().attr(rule.attr) {
-                    if let Ok(url) = base.join(value) {
-                        if self.is_allowed_domain(&url, &allowed) {
-                            links.push(normalize_url(url));
+                for &attr in rule.attrs {
+                    if let Some(value) = node.value().attr(attr) {
+                        let trimmed = value.trim();
+                        if trimmed.is_empty() || trimmed.starts_with("javascript:") || trimmed.starts_with("data:") {
+                            continue;
+                        }
+                        if let Ok(url) = base.join(trimmed) {
+                            if self.is_allowed_domain(&url, &allowed) {
+                                unique_links.insert(normalize_url(url));
+                            }
                         }
                     }
                 }
             }
         }
 
+        // ۲. استخراج فرم‌های سنتی (پشتیبان)
         let form_sel = Selector::parse("form").unwrap();
         for form in document.select(&form_sel) {
             if let Some(action) = form.value().attr("action") {
-                if let Ok(url) = base.join(action) {
+                if let Ok(url) = base.join(action.trim()) {
                     if self.is_allowed_domain(&url, &allowed) {
-                        links.push(normalize_url(url));
+                        unique_links.insert(normalize_url(url));
                     }
                 }
             }
         }
 
-        links
-    }
+        // ۳. شکار هوشمند لینک‌ها از داخل تگ‌های Script و کل بدنه HTML (مانند Endpointهای مخفی JS)
+        // این ریجکس هم URLهای کامل و هم مسیرهای نسبی فرعی موجود در کوتیشن‌ها را پیدا می‌کند
+        static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+        let re = RE.get_or_init(|| {
+            regex::Regex::new(r#"(?:"|')((?:https?://[^"'\s>]+)|(?:/[^"'\s>]{2,}))(?:"|')"#).unwrap()
+        });
 
+        for cap in re.captures_iter(html) {
+            if let Some(matched) = cap.get(1) {
+                let url_str = matched.as_str().trim();
+                if let Ok(url) = base.join(url_str) {
+                    if self.is_allowed_domain(&url, &allowed) {
+                        unique_links.insert(normalize_url(url));
+                    }
+                }
+            }
+        }
+
+
+        unique_links.into_iter().collect()
+    }
+    
     /// فاز دوم: اعمال شرایط و استخراج اهدافی که ارزش اسکن آسیب‌پذیری دارند
     fn extract_targets(&self, html: &str, url: &Url) -> Vec<Target> {
         let document = Html::parse_document(html);
@@ -217,54 +277,54 @@ impl Crawler {
         for rule in SELECTORS {
             let Ok(sel) = Selector::parse(rule.selector) else { continue };
             for node in document.select(&sel) {
-                if let Some(value) = node.value().attr(rule.attr) {
-                    if let Ok(target_url) = url.join(value) {
-                        let has_ssrf = self.has_ssrf_param(&target_url);
-                        
-                        // فیلتر کردن شرایط: اگر قاعده نیاز به پارامتر SSRF دارد اما لینک فاقد آن است، رد شو
-                        if rule.check_ssrf && !has_ssrf {
-                            continue;
-                        }
-
-                        let (final_tags, confidence) = if rule.tags.is_none() || rule.confidence.is_none() {
-                            if rule.selector == "link[href]" {
-                                resolve_link_tags(&node)
-                            } else {
-                                (rule.tags.unwrap_or(&[]).to_vec(), rule.confidence.unwrap_or(50))
+                for &attr in rule.attrs {
+                    if let Some(value) = node.value().attr(attr) {
+                        if let Ok(target_url) = url.join(value.trim()) {
+                            let has_ssrf = self.has_ssrf_param(&target_url);
+                            
+                            if rule.check_ssrf && !has_ssrf {
+                                continue;
                             }
-                        } else {
-                            (rule.tags.unwrap().to_vec(), rule.confidence.unwrap())
-                        };
 
-                        //if new_targets.iter().any(|t: &T| t.url == target_url) { continue; }
-						if new_targets.iter().any(|t: &Target| t.url == target_url) { continue; }
+                            let (final_tags, confidence) = if rule.tags.is_none() || rule.confidence.is_none() {
+                                if rule.selector.contains("link[href]") {
+                                    resolve_link_tags(&node)
+                                } else {
+                                    (rule.tags.unwrap_or(&[]).to_vec(), rule.confidence.unwrap_or(50))
+                                }
+                            } else {
+                                (rule.tags.unwrap().to_vec(), rule.confidence.unwrap())
+                            };
 
-                        let params = target_url.query_pairs()
-                            .map(|(k, _)| Param {
-                                name: k.to_string(),
-                                value: None,
-                                location: ParamLocation::Query,
-                            })
-                            .collect();
+                            if new_targets.iter().any(|t: &Target| t.url == target_url) { continue; }
 
-                        new_targets.push(Target {
-                            url: target_url.clone(),
-                            kind: rule.kind,
-                            method: Method::GET.to_string(),
-                            source: rule.source,
-                            params,
-                            meta: TargetMeta {
-                                tags: final_tags,
-                                confidence,
-                                technologies: vec![],
-                            },
-                        });
+                            let params = target_url.query_pairs()
+                                .map(|(k, _)| Param {
+                                    name: k.to_string(),
+                                    value: None,
+                                    location: ParamLocation::Query,
+                                })
+                                .collect();
+
+                            new_targets.push(Target {
+                                url: target_url.clone(),
+                                kind: rule.kind,
+                                method: Method::GET.to_string(),
+                                source: rule.source,
+                                params,
+                                meta: TargetMeta {
+                                    tags: final_tags,
+                                    confidence,
+                                    technologies: vec![],
+                                },
+                            });
+                        }
                     }
                 }
             }
         }
 
-        // استخراج فرم‌ها به صورت ساختارمند
+        // 🟢 بخش جا افتاده: استخراج فرم‌ها و مقادیر بازگشتی تابع
         let form_sel = Selector::parse("form").unwrap();
         let input_sel = Selector::parse("input, textarea, select, hidden").unwrap();
 
@@ -283,7 +343,7 @@ impl Crawler {
                     })
                     .collect();
 
-				if new_targets.iter().any(|t: &Target| t.url == target_url) { continue; }
+                if new_targets.iter().any(|t: &Target| t.url == target_url) { continue; }
 
                 let has_interesting_param = params.iter().any(|p| SSRF_PARAMS.contains(&p.name.as_str()));
                 let confidence = if has_interesting_param { 100 } else { 60 };
@@ -303,7 +363,7 @@ impl Crawler {
             }
         }
 
-        new_targets
+        new_targets // بازگرداندن خروجی نهایی
     }
 
     fn has_ssrf_param(&self, url: &Url) -> bool {
@@ -384,7 +444,17 @@ impl Crawler {
                         visited.insert(url.clone());
                     }
 
+                    // 🟢 استفاده از مانیتور هوشمند برای مدیریت دقیق active_tasks
                     active_tasks.fetch_add(1, Ordering::SeqCst);
+                    let active_tasks_guard = {
+                        let active = Arc::clone(&active_tasks);
+                        let n = Arc::clone(&notify);
+                        // این ساختار به محض خارج شدن از اسکوپ، شمارنده را کم کرده و نوتیفای می‌فرستد
+                        scopeguard::guard((), move |_| {
+                            active.fetch_sub(1, Ordering::SeqCst);
+                            n.notify_waiters();
+                        })
+                    };
 
                     let req = RequestData {
                         method: Method::GET,
@@ -403,7 +473,6 @@ impl Crawler {
                             let content_type = resp.headers.get("content-type").and_then(|v| v.to_str().ok());
                             let html = Crawler::decode_body(&resp.body, content_type);
 
-                            // ۱. شخم زدن صفحات برای کشف کل لینک‌ها (بدون فیلتر)
                             let new_links = this.extract_links(&html, &final_url);
                             let links_count = new_links.len();
                             
@@ -416,7 +485,6 @@ impl Crawler {
                                 }
                             }
 
-                            // ۲. استخراج اهداف واجد شرایط آسیب‌پذیری
                             let new_targets = this.extract_targets(&html, &final_url);
                             let targets_count = new_targets.len();
 
@@ -432,7 +500,6 @@ impl Crawler {
                                 this.targets.lock().await.extend(new_targets);
                             }
 
-                            // 🟢 نمایش وضعیت زنده در ترمینال (Live UX Reporting)
                             let current_queue_size = queue.lock().await.len();
                             let total_discovered_targets = this.targets.lock().await.len();
                             
@@ -453,9 +520,9 @@ impl Crawler {
                             this.log(&format!("[ERROR] {} - {}", url, e));
                         }
                     }
-
-                    active_tasks.fetch_sub(1, Ordering::SeqCst);
-                    notify.notify_waiters();
+                    
+                    // 🟢 اینجا دیگر نیازی به تغییرات دستی در فچ ساب نیست، گارد خودش کار را انجام می‌دهد.
+                    drop(active_tasks_guard); 
                 }
             }));
         }
