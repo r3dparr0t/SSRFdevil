@@ -43,7 +43,7 @@ const SELECTORS: &[SelectorRule] = &[
     SelectorRule {
         selector: "img[src]", attr: "src", check_ssrf: false,
         source: DiscoverySource::Image, kind: TargetKind::Resource,
-        tags: Some(&[TargetTag::Image]), confidence: Some(50),
+        tags: Some(&[TargetTag::Image]), confidence: Some(90),
     },
     SelectorRule {
         selector: "iframe[src]", attr: "src", check_ssrf: false,
@@ -56,11 +56,47 @@ const SELECTORS: &[SelectorRule] = &[
         tags: Some(&[TargetTag::Js]), confidence: Some(60),
     },
     SelectorRule {
+        selector: "video[src]", attr: "src", check_ssrf: false,
+        source: DiscoverySource::Link, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Video]), confidence: Some(90),
+    },
+    SelectorRule {
+        selector: "audio[src]", attr: "src", check_ssrf: false,
+        source: DiscoverySource::Link, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Audio]), confidence: Some(80),
+    },
+    SelectorRule {
+        selector: "source[src]", attr: "src", check_ssrf: false,
+        source: DiscoverySource::Link, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Media]), confidence: Some(70),
+    },
+    SelectorRule {
+        selector: "embed[src]", attr: "src", check_ssrf: false,
+        source: DiscoverySource::Embed, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Media]), confidence: Some(70),
+    },
+    SelectorRule {
+        selector: "object[data]", attr: "data", check_ssrf: false,
+        source: DiscoverySource::Object, kind: TargetKind::Resource,
+        tags: Some(&[TargetTag::Media]), confidence: Some(70),
+    },
+    SelectorRule {
         selector: "link[href]", attr: "href", check_ssrf: false,
         source: DiscoverySource::Link, kind: TargetKind::Resource,
         tags: None, confidence: None,
     },
+    SelectorRule {
+        selector: "input[formaction]", attr: "formaction", check_ssrf: false,
+        source: DiscoverySource::Form, kind: TargetKind::Endpoint,
+        tags: Some(&[TargetTag::Form]), confidence: Some(100),
+    },
+    SelectorRule {
+        selector: "button[formaction]", attr: "formaction", check_ssrf: false,
+        source: DiscoverySource::Form, kind: TargetKind::Endpoint,
+        tags: Some(&[TargetTag::Form]), confidence: Some(100),
+    },
 ];
+
 
 #[derive(Clone)]
 pub struct CrawlerConfig {
