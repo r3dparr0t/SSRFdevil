@@ -1,20 +1,24 @@
 // crawler/crawler.rs
 use scraper::{Html, Selector, ElementRef};
 use url::Url;
-use std::collections::{HashSet, VecDeque};
-use std::io::{BufWriter, Write};
-use std::fs::File;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::{
+	collections::{HashSet, VecDeque},
+	io::{BufWriter, Write},
+	fs::File,
+	sync::{Arc,atomic::{AtomicUsize, Ordering}},
+	time::Duration
+};
 use tokio::sync::{Mutex, Notify};
 use reqwest::{Method, header::HeaderMap};
-use crate::engine::{
-    request_engine::RequestEngine,
-    request::RequestData,
-};
-use crate::crawler::crawler_config::{
-    Target, TargetKind, DiscoverySource, TargetMeta, TargetTag, Param, ParamLocation,
+use crate::{
+	engine::{
+    	request_engine::RequestEngine,
+    	request::RequestData,
+    },
+    crawler::crawler_config::{
+    	Target,TargetKind, DiscoverySource,
+    	TargetMeta, TargetTag, Param, ParamLocation,
+	}
 };
 
 const SSRF_PARAMS: &[&str] = &[
@@ -246,7 +250,7 @@ impl Crawler {
                         new_targets.push(Target {
                             url: target_url.clone(),
                             kind: rule.kind,
-                            method: Method::GET,
+                            method: Method::GET.to_string(),
                             source: rule.source,
                             params,
                             meta: TargetMeta {
@@ -279,7 +283,6 @@ impl Crawler {
                     })
                     .collect();
 
-                //if new_targets.iter().any(|t| t.url == target_url) { continue; }
 				if new_targets.iter().any(|t: &Target| t.url == target_url) { continue; }
 
                 let has_interesting_param = params.iter().any(|p| SSRF_PARAMS.contains(&p.name.as_str()));
@@ -288,7 +291,7 @@ impl Crawler {
                 new_targets.push(Target {
                     url: target_url,
                     kind: TargetKind::Endpoint,
-                    method: if method == "POST" { Method::POST } else { Method::GET },
+                    method: if method == "POST" { Method::POST.to_string() } else { Method::GET.to_string() },
                     source: DiscoverySource::Form,
                     params,
                     meta: TargetMeta {
@@ -321,7 +324,8 @@ impl Crawler {
         println!("[🚀] Crawler Discovery Engine started...");
 
         {
-            let file = File::create("crawl.log").expect("cannot create log file");
+            std::fs::create_dir_all(crate::paths::CRAWL_LOG_DIR).ok();
+            let file = File::create(crate::paths::CRAWL_LOG).expect("cannot create log file");
             *self.logger.lock().unwrap() = Some(BufWriter::new(file));
         }
 
@@ -371,7 +375,7 @@ impl Crawler {
                     
                     let (url, depth) = item.unwrap();
                     drop(q);
-
+                    if crate::state::STOP_CRAWL.load(Ordering::SeqCst) { break; }
                     if depth > max_depth { continue; }
 
                     {
@@ -417,6 +421,14 @@ impl Crawler {
                             let targets_count = new_targets.len();
 
                             if targets_count > 0 {
+                                if let Ok(db) = sled::open(crate::paths::TARGETS_DB) {
+                                    for t in &new_targets {
+                                        let key = t.url.to_string();
+                                        if let Ok(val) = serde_json::to_vec(t) {
+                                            db.insert(key.as_bytes(), val).ok();
+                                        }
+                                    }
+                                }
                                 this.targets.lock().await.extend(new_targets);
                             }
 

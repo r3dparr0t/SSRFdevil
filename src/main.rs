@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[🚀] Launching SSRFdevil for: {}", target_url);
     
     // load rules to sled
-    let db = sled::open(paths::DB_PATH)?;
+    let db = sled::open(paths::RULES_DB)?;
     println!("[!] Synthesizing rules Directory...");
     rule_engine::populate_rules_db(&db, paths::RULES_DIR)?;
 

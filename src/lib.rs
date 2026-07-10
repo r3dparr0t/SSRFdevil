@@ -5,3 +5,4 @@ pub mod rule;
 pub mod executor;
 pub mod console;
 pub mod config;
+pub mod state;

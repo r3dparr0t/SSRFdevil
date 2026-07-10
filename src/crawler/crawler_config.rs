@@ -1,17 +1,18 @@
 // crawler_config.rs
-use reqwest::Method;
+//use reqwest::Method;
 use url::Url;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Target {
     pub url: Url,
     pub kind: TargetKind,
-    pub method: Method,
+    pub method: String,
     pub source: DiscoverySource,
     pub params: Vec<Param>,
     pub meta: TargetMeta,
 }
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum DiscoverySource {
     Link,
     Form,
@@ -25,21 +26,21 @@ pub enum DiscoverySource {
     Object,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)] // <-- Hash رو اضافه کن
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)] // <-- Hash رو اضافه کن
 pub enum TargetKind {
     Endpoint,
     Resource,
     Document,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct TargetMeta {
     pub technologies: Vec<Technology>,
     pub tags: Vec<TargetTag>,
     pub confidence: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TargetTag {
 
     // API
@@ -101,7 +102,7 @@ pub enum TargetTag {
     Rss, 
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Technology {
 
     React,
@@ -120,14 +121,14 @@ pub enum Technology {
 
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Param {
     pub name: String,
     pub value: Option<String>, 
     pub location: ParamLocation,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum ParamLocation {
     Query,
     Form,
