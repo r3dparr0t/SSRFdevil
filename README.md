@@ -28,7 +28,6 @@ Implemented:
 ✅ URL Parameter Extraction
 
 In Progress:
-
 🚧 Scanner Engine
 🚧 False Positive Reduction
 🚧 Lua Runtime
