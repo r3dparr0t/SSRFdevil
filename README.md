@@ -1,22 +1,20 @@
-# SSRFdevil
+
+## SSRFdevil
 Rule-Based SSRF Discovery & Exploitation Framework.
-SSRF scanner and attacker going to be fully automated soon!
+SSRF scanner and attacker. And it's going to be fully automated soon!
 
 هنوز در حال توسعه هست...
 — فعلاً اینترنت را می‌خزد؛ بعد نوبت اسکن است. 😁
 
-> **SSRF Detection & Exploitation Framework** — ولی فعلاً فقط قورت‌دهنده‌ی رول‌ها! :))
+** Powerful interactive console added
 
-SSRFdevil یه موتور هوشمند برای شناسایی و دور زدن آسیب‌پذیری‌های SSRF هست.  
-این پروژه با **Rust** نوشته شده و از معماری **Rule-Based** با قابلیت اجرای اسکریپت‌های **Lua** برای تولید پیلودهای پویا استفاده می‌کنه.
+SSRFdevil یه موتور هوشمند برای شناسایی و دور زدن آسیب‌پذیری‌های SSRF هست.
+این پروژه با Rust نوشته شده و از معماری Rule-Based با قابلیت اجرای اسکریپت‌های Lua برای تولید پیلودهای پویا استفاده می‌کنه.
 
----
-
-## 🚧 Current Status (Phase 1)
-
+# 🚧 Current Status (Phase 1)
 Core framework is operational.
 
-Implemented:
+# Implemented:
 
 ✅ Interactive Console
 ✅ Rule Engine (YAML)
@@ -27,7 +25,7 @@ Implemented:
 ✅ Resource Classification
 ✅ URL Parameter Extraction
 
-In Progress:
+# In Progress:
 🚧 Scanner Engine
 🚧 False Positive Reduction
 🚧 Lua Runtime
