@@ -1,6 +1,7 @@
 # SSRFdevil
 Rule-Based SSRF Discovery & Exploitation Framework.
 SSRF scanner and attacker going to be fully automated soon!
+
 هنوز در حال توسعه هست...
 — فعلاً اینترنت را می‌خزد؛ بعد نوبت اسکن است. 😁
 
