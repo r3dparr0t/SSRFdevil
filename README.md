@@ -1,6 +1,8 @@
 # SSRFdevil
-SSRF scanner and attacker fully automated!
+Rule-Based SSRF Discovery & Exploitation Framework.
+SSRF scanner and attacker going to be fully automated soon!
 هنوز در حال توسعه هست...
+— فعلاً اینترنت را می‌خزد؛ بعد نوبت اسکن است. 😁
 
 > **SSRF Detection & Exploitation Framework** — ولی فعلاً فقط قورت‌دهنده‌ی رول‌ها! :))
 
@@ -9,17 +11,27 @@ SSRFdevil یه موتور هوشمند برای شناسایی و دور زدن 
 
 ---
 
-## 🚧 وضعیت فعلی (Phase 1)
+## 🚧 Current Status (Phase 1)
 
-> **پله‌ی اول برداشته شده!**
+Core framework is operational.
 
-توی این مرحله، هسته‌ی **بارگذاری و مدیریت رول‌ها** به طور کامل پیاده‌سازی شده:
+Implemented:
 
-- ✅ خواندن رول‌ها از فایل‌های `YAML` داخل پوشه `rules/`
-- ✅ ذخیره‌سازی رول‌ها در دیتابیس داخلی **Sled** (کی‌ولیو فوق‌سریع)
-- ✅ انتخاب هوشمند `Best Rule` بر اساس فیلدهای `Rank` و `Updated`
-- ✅ ساختار متادیتای کامل شامل `severity`، `tags`، `references` و ...
-- ⏳ **اسکنر واقعی (که رول‌ها رو اجرا کنه) در مرحله‌ی بعدی قرار داره!**
+✅ Interactive Console
+✅ Rule Engine (YAML)
+✅ Payload Database
+✅ Target Database
+✅ Lua Rule Support (WIP)
+✅ High-speed Web Crawler
+✅ Resource Classification
+✅ URL Parameter Extraction
+
+In Progress:
+
+🚧 Scanner Engine
+🚧 False Positive Reduction
+🚧 Lua Runtime
+🚧 Crawl Configuration
 
 ---
 
