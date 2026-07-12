@@ -1,5 +1,9 @@
-use std::process;
-use std::time::Duration;
+use std::{
+    process,
+    time::Duration,
+    fs,
+    sync::Arc
+};
 use url::Url;
 use ssrfdevil::{
 	crawler::crawler::{Crawler,CrawlerConfig},
@@ -13,7 +17,6 @@ use ssrfdevil::{
 	},
 	config
 };
-use std::sync::Arc;
 
 // تابع اول: فقط پارس متنی و اصلاح ساختار URL
 fn parse_url(target: &str) -> Url {
@@ -81,7 +84,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ۳. ادامه برنامه در صورت زنده بودن هدف
     println!("[🚀] Launching SSRFdevil for: {}", target_url);
-    
+    // remove old target_db
+    fs::remove_dir_all(paths::TARGETS_DB).unwrap_or(());
     // load rules to sled
     let db = sled::open(paths::RULES_DB)?;
     println!("[!] Synthesizing rules Directory...");
@@ -109,11 +113,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine_config.timeout = std::time::Duration::from_secs(timeout_secs);
     
     let engine = RequestEngine::new(engine_config);
-    //let mut crawler = Crawler::new(engine.clone())
-    // قبلاً:
-    // let mut crawler = Crawler::new(engine.clone());
     
-    // جدید:
+    // new crawler
     let crawler_config = CrawlerConfig {
         seed_urls: vec![target_url.clone()],
         max_depth: 3,                         // هر عمقی خواستی

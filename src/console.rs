@@ -54,8 +54,178 @@ fn select_ua_profile(settings: &mut Settings) {
         _ => println!("[!] Invalid option."),
     }
 }
+fn run_ua_headers_menu() {
+    loop {
+        let (ua_label, headers_count) = {
+            let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
+            (settings.ua_profile.label().to_string(), settings.custom_headers.len())
+        };
 
-fn run_settings_menu() {
+        println!("\n📝 [Menu 1] User-Agent & Custom Headers");
+        println!("-----------------------------------------");
+        println!("    [1] UA Profile      : {}", ua_label);
+        println!("    [2] Custom Headers  : {} loaded", headers_count);
+        println!("-----------------------------------------");
+        println!("Select option or 'back' > ");
+
+        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
+        let input = prompt(&shell_prompt(&selected_rules, "[settings->identity]"));
+
+        match input.trim() {
+            "1" => {
+                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                select_ua_profile(&mut settings);
+            }
+            "2" => {
+                println!("Enter header (Format 'Key: Value') or empty line to finish:");
+                let mut new_headers = std::collections::HashMap::new();
+                loop {
+                    let h = prompt("Header > ");
+                    if h.is_empty() { break; }
+                    if let Some((k, v)) = h.split_once(':') {
+                        new_headers.insert(k.trim().to_string(), v.trim().to_string());
+                    }
+                }
+                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                settings.custom_headers = new_headers;
+                println!("[+] Custom headers updated.");
+            }
+            "b" | "back" => break,
+            _ => println!("[!] Invalid choice."),
+        }
+    }
+}
+fn run_request_engine_menu() {
+    loop {
+        let (threads, runtime, timeout, delay_min, delay_max, retry) = {
+            let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
+            (
+                settings.threads,
+                settings.max_runtime,
+                settings.timeout,
+                settings.delay_min,
+                settings.delay_max,
+                settings.retry,
+            )
+        };
+
+        println!("\n⚡ [Menu 2] Request & Concurrency Settings");
+        println!("-----------------------------------------");
+        println!("    [1] Workers (Threads)     : {}", threads);
+        println!("    [2] Max Runtime Limit     : {}s", if runtime == 0 { "Unlimited".to_string() } else { runtime.to_string() });
+        println!("    [3] Request Timeout       : {}s", timeout);
+        println!("    [4] Jitter Delay Range    : {}ms - {}ms", delay_min, delay_max);
+        println!("    [5] Request Retry Count   : {} times", retry);
+        println!("-----------------------------------------");
+        println!("Select option or 'back' > ");
+
+        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
+        let input = prompt(&shell_prompt(&selected_rules, "[settings->engine]"));
+
+        match input.trim() {
+            "1" => {
+                if let Some(t) = prompt_i32("Enter worker count > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().threads = t;
+                }
+            }
+            "2" => {
+                if let Some(r) = prompt_i32("Enter max runtime in seconds (0 for infinite) > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().max_runtime = r as u64;
+                }
+            }
+            "3" => {
+                if let Some(t) = prompt_i32("Enter timeout (seconds) > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().timeout = t;
+                }
+            }
+            "4" => {
+                if let Some(min) = prompt_i32("Min Delay (ms) > ") {
+                    if let Some(max) = prompt_i32("Max Delay (ms) > ") {
+                        let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                        settings.delay_min = min as u64;
+                        settings.delay_max = max as u64;
+                    }
+                }
+            }
+            "5" => {
+                if let Some(r) = prompt_i32("Enter retry count > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().retry = r as usize;
+                }
+            }
+            "b" | "back" => break,
+            _ => println!("[!] Invalid choice."),
+        }
+    }
+}
+
+fn run_crawler_advanced_menu() {
+    loop {
+        let (proxies_len, rotation, rate, depth, targets, save) = {
+            let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
+            (
+                settings.crawler_proxies.len(),
+                settings.crawler_proxy_rotation,
+                settings.crawler_rate_limit,
+                settings.crawler_max_depth,
+                settings.crawler_max_targets,
+                settings.crawler_save_state,
+            )
+        };
+
+        println!("\n🔍 [Menu 3] Crawler Core & Proxy Configuration");
+        println!("-----------------------------------------");
+        println!("    [1] Proxy List            : {} loaded", proxies_len);
+        println!("    [2] Proxy Rotation        : {}", if rotation { "ON 🔄" } else { "OFF 🛑" });
+        println!("    [3] Rate Limit (Global)   : {} req/sec", if rate == 0 { "Unlimited".to_string() } else { rate.to_string() });
+        println!("    [4] Max Crawl Depth       : {}", depth);
+        println!("    [5] Max Target KillSwitch : {}", if targets == 0 { "Unlimited".to_string() } else { targets.to_string() });
+        println!("    [6] Save/Resume State     : {}", if save { "Enabled ✅" } else { "Disabled ❌" });
+        println!("-----------------------------------------");
+        println!("Select option or 'back' > ");
+
+        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
+        let input = prompt(&shell_prompt(&selected_rules, "[settings->crawler]"));
+
+        match input.trim() {
+            "1" => {
+                let path = prompt("Enter path to proxy list file > ");
+                if !path.is_empty() {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        let list: Vec<String> = content.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+                        crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_proxies = list;
+                    }
+                }
+            }
+            "2" => {
+                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                settings.crawler_proxy_rotation = !settings.crawler_proxy_rotation;
+            }
+            "3" => {
+                if let Some(r) = prompt_i32("Enter rate limit (req/s, 0 for unlimited) > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_rate_limit = r as usize;
+                }
+            }
+            "4" => {
+                if let Some(d) = prompt_i32("Enter max depth > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_max_depth = d as usize;
+                }
+            }
+            "5" => {
+                if let Some(t) = prompt_i32("Enter max targets cap (0 for unlimited) > ") {
+                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_max_targets = t as usize;
+                }
+            }
+            "6" => {
+                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                settings.crawler_save_state = !settings.crawler_save_state;
+            }
+            "b" | "back" => break,
+            _ => println!("[!] Invalid choice."),
+        }
+    }
+}
+
+/*fn run_settings_menu() {
     loop {
         // خواندن مقادیر به صورت ایمن و لوکال برای نمایش
         let (ua_label, timeout, threads) = {
@@ -96,6 +266,29 @@ fn run_settings_menu() {
                     println!("[!] Invalid number.");
                 }
             }
+            "b" | "back" | "quit" | "exit" => break,
+            _ => println!("[!] Unknown option."),
+        }
+    }
+}*/
+
+fn run_settings_menu() {
+    loop {
+        println!("\n⚙️  SSRFdevil Core Settings");
+        println!("=========================================");
+        println!("    [1] User-Agent & Custom Headers Menu --->");
+        println!("    [2] Request Engine Settings (Threads/Delays) --->");
+        println!("    [3] Advanced Crawler & Proxy Settings --->");
+        println!("=========================================");
+        println!("Type menu number to enter, or 'back' to return.");
+
+        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
+        let input = prompt(&shell_prompt(&selected_rules, "[settings]"));
+
+        match input.trim() {
+            "1" => run_ua_headers_menu(),
+            "2" => run_request_engine_menu(),
+            "3" => run_crawler_advanced_menu(),
             "b" | "back" | "quit" | "exit" => break,
             _ => println!("[!] Unknown option."),
         }
