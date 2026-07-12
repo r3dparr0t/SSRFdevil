@@ -1,9 +1,18 @@
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    time::Duration
+};
+
 use sled::Db;
 use crate::{
     rule::RuleFile,
     executor,
-    engine::{ua_engine, rule_engine, RequestEngine},
+    engine::{
+        ua_engine,
+        rule_engine,
+        RequestEngine,
+        RedirectPolicy
+    },
     crawler::crawler::Crawler,
     config::{Settings, UaProfile} // دریافت مستقیم از ماژول کانفیگ مرکزی
 };
@@ -54,6 +63,7 @@ fn select_ua_profile(settings: &mut Settings) {
         _ => println!("[!] Invalid option."),
     }
 }
+
 fn run_ua_headers_menu() {
     loop {
         let (ua_label, headers_count) = {
@@ -73,8 +83,11 @@ fn run_ua_headers_menu() {
 
         match input.trim() {
             "1" => {
-                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-                select_ua_profile(&mut settings);
+                {
+                    let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
+                    select_ua_profile(&mut settings);
+                }
+                ua_engine::init();
             }
             "2" => {
                 println!("Enter header (Format 'Key: Value') or empty line to finish:");
@@ -95,17 +108,16 @@ fn run_ua_headers_menu() {
         }
     }
 }
-fn run_request_engine_menu() {
+
+fn run_request_engine_menu(engine: &mut RequestEngine) {
     loop {
-        let (threads, runtime, timeout, delay_min, delay_max, retry) = {
+        let (threads, runtime, delay_min, delay_max) = {
             let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
             (
                 settings.threads,
                 settings.max_runtime,
-                settings.timeout,
                 settings.delay_min,
                 settings.delay_max,
-                settings.retry,
             )
         };
 
@@ -113,9 +125,10 @@ fn run_request_engine_menu() {
         println!("-----------------------------------------");
         println!("    [1] Workers (Threads)     : {}", threads);
         println!("    [2] Max Runtime Limit     : {}s", if runtime == 0 { "Unlimited".to_string() } else { runtime.to_string() });
-        println!("    [3] Request Timeout       : {}s", timeout);
+        println!("    [3] Request Timeout       : {}s", engine.config.timeout.as_secs());
         println!("    [4] Jitter Delay Range    : {}ms - {}ms", delay_min, delay_max);
-        println!("    [5] Request Retry Count   : {} times", retry);
+        let num = if let RedirectPolicy::Limited(v) = engine.config.redirects { v as u64 } else { 0 };
+        println!("    [5] Request redirects     : {} times", num);
         println!("-----------------------------------------");
         println!("Select option or 'back' > ");
 
@@ -135,7 +148,7 @@ fn run_request_engine_menu() {
             }
             "3" => {
                 if let Some(t) = prompt_i32("Enter timeout (seconds) > ") {
-                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().timeout = t;
+                    engine.config.timeout = Duration::from_secs(t.try_into().unwrap());
                 }
             }
             "4" => {
@@ -149,7 +162,7 @@ fn run_request_engine_menu() {
             }
             "5" => {
                 if let Some(r) = prompt_i32("Enter retry count > ") {
-                    crate::config::APP_SETTINGS.get().unwrap().write().unwrap().retry = r as usize;
+                    engine.config.redirects = RedirectPolicy::Limited(r as usize);
                 }
             }
             "b" | "back" => break,
@@ -225,54 +238,7 @@ fn run_crawler_advanced_menu() {
     }
 }
 
-/*fn run_settings_menu() {
-    loop {
-        // خواندن مقادیر به صورت ایمن و لوکال برای نمایش
-        let (ua_label, timeout, threads) = {
-            let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
-            (settings.ua_profile.label().to_string(), settings.timeout, settings.threads)
-        };
-
-        println!("\nCurrent Settings:");
-        println!("        [1] User-Agent Profile    {}", ua_label);
-        println!("        [2] Timeout               {}s", timeout);
-        println!("        [3] Threads               {}", threads);
-        println!("\nType setting number to change, or 'back' to return.");
-
-        let selected_rules = rule_engine::SELECTED_RULES.read().unwrap();
-        let input = prompt(&shell_prompt(&selected_rules, "[settings]" ));
-
-        match input.trim() {
-            "1" => {
-                // کدهای تغییر پروفایل را داخل یک کلوژر قفل‌شونده باز می‌کنیم
-                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-                select_ua_profile(&mut settings);
-            },
-            "2" => {
-                if let Some(t) = prompt_i32("Enter new timeout (seconds) > ") {
-                    let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-                    settings.timeout = t;
-                    println!("[+] Timeout updated to {}s.", t);
-                } else {
-                    println!("[!] Invalid number.");
-                }
-            }
-            "3" => {
-                if let Some(t) = prompt_i32("Enter new threads count > ") {
-                    let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-                    settings.threads = t; // اصلاح فیلد تایم‌اوت به ترد
-                    println!("[+] Threads updated to {}.", t);
-                } else {
-                    println!("[!] Invalid number.");
-                }
-            }
-            "b" | "back" | "quit" | "exit" => break,
-            _ => println!("[!] Unknown option."),
-        }
-    }
-}*/
-
-fn run_settings_menu() {
+fn run_settings_menu(engine: &mut RequestEngine,) {
     loop {
         println!("\n⚙️  SSRFdevil Core Settings");
         println!("=========================================");
@@ -287,7 +253,7 @@ fn run_settings_menu() {
 
         match input.trim() {
             "1" => run_ua_headers_menu(),
-            "2" => run_request_engine_menu(),
+            "2" => run_request_engine_menu(engine),
             "3" => run_crawler_advanced_menu(),
             "b" | "back" | "quit" | "exit" => break,
             _ => println!("[!] Unknown option."),
@@ -299,7 +265,7 @@ pub async fn run_interactive_console(
     db: &Db,
     target_url: &str,
     crawler: Arc<Crawler>,      // <-- Arc مستقیم
-    engine: &RequestEngine,
+    engine: &mut RequestEngine,
 ) {
     let mut selected_rules: Vec<RuleFile> = rule_engine::SELECTED_RULES.read().unwrap().clone();
     let mut last_results: Vec<RuleFile> = Vec::new();
@@ -313,8 +279,7 @@ pub async fn run_interactive_console(
         match cmd {
             "help" | "?" => print_help(),
             "settings" => {
-                run_settings_menu(); 
-                ua_engine::init();
+                run_settings_menu(engine); 
             }
             "search" => {
                 last_results = rule_engine::search_rules(db, arg);

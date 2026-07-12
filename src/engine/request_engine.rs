@@ -1,9 +1,11 @@
 // engine/request_engine.rs
 use std::time::Duration;
 use reqwest::Client;
-use crate::engine::request::RequestData;
-use crate::engine::response::ResponseData;
-use crate::engine::{delay_engine, header_engine, ua_engine, cookie_engine, trace_engine};
+use crate::engine::{
+    request::RequestData,
+    response::ResponseData,
+    {delay_engine, header_engine, ua_engine, cookie_engine, trace_engine}
+};
 
 #[derive(Clone)]
 pub enum RedirectPolicy {
@@ -29,7 +31,7 @@ impl Default for EngineConfig {
     fn default() -> Self {
         EngineConfig {
             timeout: Duration::from_secs(10),
-            redirects: RedirectPolicy::Limited(5),
+            redirects: RedirectPolicy::Limited(3),
             random_ua: true,
             random_delay: true,
             trace: false,
@@ -44,7 +46,7 @@ impl Default for EngineConfig {
 #[derive(Clone)]
 pub struct RequestEngine {
     client: Client,
-    config: EngineConfig,
+    pub config: EngineConfig,
 }
 
 impl RequestEngine {

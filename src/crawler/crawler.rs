@@ -14,6 +14,7 @@ use crate::{
 	engine::{
     	request_engine::RequestEngine,
     	request::RequestData,
+    	RedirectPolicy
     },
     crawler::crawler_config::{
     	Target, TargetKind, DiscoverySource,
@@ -229,7 +230,7 @@ impl Crawler {
         let notify = Arc::new(Notify::new());
         let allowed = Arc::new(self.allowed_domains_set());
 
-        let (worker_count, max_depth, max_runtime, retry_limit, save_state) = self.load_runtime_settings();
+        let (worker_count, max_depth, max_runtime, save_state) = self.load_runtime_settings();
 
         // ۳. بازیابی استیت و بررسی هوشمند برای جلوگیری از بن‌بست ویزیت‌شده‌ها
         let mut state_recovered = false;
@@ -309,7 +310,7 @@ impl Crawler {
                         url, 
                         depth, 
                         save_state, 
-                        retry_limit, 
+                        //retry_limit, 
                         allowed.clone(), 
                         queue.clone(), 
                         active_tasks.clone(), 
@@ -591,13 +592,13 @@ impl Crawler {
         *self.logger.lock().unwrap() = Some(BufWriter::new(file));
     }
 
-    fn load_runtime_settings(&self) -> (usize, usize, u64, u32, bool) {
+    fn load_runtime_settings(&self) -> (usize, usize, u64, bool) {
         let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
         (
             settings.threads as usize,
             settings.crawler_max_depth,
             settings.max_runtime,
-            settings.retry as u32,
+            //settings.retry as u32,
             settings.crawler_save_state,
         )
     }
@@ -659,7 +660,7 @@ impl Crawler {
         url: Url,
         depth: usize,
         save_state: bool,
-        retry_limit: u32,
+        //retry_limit: u32,
         allowed: Arc<HashSet<String>>,
         queue: Arc<Mutex<VecDeque<(Url, usize)>>>,
         active_tasks: Arc<AtomicUsize>,
@@ -678,7 +679,7 @@ impl Crawler {
                 }
             }
         }
-
+        let retry_limit = if let RedirectPolicy::Limited(v) = self.engine.config.redirects { v as u32 } else { 0 };
         active_tasks.fetch_add(1, Ordering::SeqCst);
         let active_tasks_guard = {
             let active = active_tasks.clone();

@@ -31,11 +31,11 @@ pub struct Settings {
     // --- تنظیمات عمومی و اسکنر ---
     pub ua_profile: UaProfile,
     pub custom_headers: HashMap<String, String>,
-    pub timeout: i32,
+    //pub timeout: i32,
     pub threads: i32,
     pub delay_min: u64,
     pub delay_max: u64,
-    pub retry: usize,
+    //pub redirects: usize,
     pub max_runtime: u64,
     
     // --- تنظیمات اختصاصی خزنده (جدید) ---
@@ -55,11 +55,11 @@ impl Default for Settings {
             ua_profile: UaProfile::Balanced,
             custom_headers: HashMap::new(),
            
-            timeout: 5,
+            //timeout: 5,
             threads: 10, // این همون مقدار ماکسیمم همزمانی (Worker Count) خواهد بود
             delay_min: 1000, // پیش‌فرض ۱ ثانیه
             delay_max: 3500, // پیش‌فرض ۳.۵ ثانیه
-            retry: 3,
+            //redirects: 3,
             max_runtime: 0,  // 0 یعنی نامحدود
           
             crawler_proxies: Vec::new(),

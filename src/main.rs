@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ۳. ادامه برنامه در صورت زنده بودن هدف
     println!("[🚀] Launching SSRFdevil for: {}", target_url);
     // remove old target_db
-    fs::remove_dir_all(paths::TARGETS_DB).unwrap_or(());
+    let _ = fs::remove_dir_all(paths::TARGETS_DB).unwrap_or(());
     // load rules to sled
     let db = sled::open(paths::RULES_DB)?;
     println!("[!] Synthesizing rules Directory...");
@@ -101,19 +101,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("[❌] No rules found in database.");
     }
+
+	config::init_global_settings();
     // init user profile engine.
 	ua_engine::init();
-	config::init_global_settings();
-	let timeout_secs = {
-        let settings = config::APP_SETTINGS.get().unwrap().read().unwrap();
-        settings.timeout as u64
-    };
-    
-    let mut engine_config = EngineConfig::default();
-    engine_config.timeout = std::time::Duration::from_secs(timeout_secs);
-    
-    let engine = RequestEngine::new(engine_config);
-    
+    let engine_config = EngineConfig::default();
+    let mut engine = RequestEngine::new(engine_config);
+
     // new crawler
     let crawler_config = CrawlerConfig {
         seed_urls: vec![target_url.clone()],
@@ -123,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let crawler = Arc::new(Crawler::new(engine.clone(), crawler_config));
-    console::run_interactive_console(&db, target_url.as_str(), crawler, &engine).await;
+    console::run_interactive_console(&db, target_url.as_str(), crawler, &mut engine).await;
     
 	Ok(())
 }
