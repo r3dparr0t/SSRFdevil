@@ -91,17 +91,22 @@ fn run_ua_headers_menu() {
             }
             "2" => {
                 println!("Enter header (Format 'Key: Value') or empty line to finish:");
-                let mut new_headers = std::collections::HashMap::new();
+                crate::engine::header_engine::clear_custom_headers();
+                let mut added = 0;
                 loop {
                     let h = prompt("Header > ");
                     if h.is_empty() { break; }
-                    if let Some((k, v)) = h.split_once(':') {
-                        new_headers.insert(k.trim().to_string(), v.trim().to_string());
+                    match h.split_once(':') {
+                        Some((k, v)) => {
+                            match crate::engine::header_engine::add_custom_header(k.trim(), v.trim()) {
+                                Ok(()) => added += 1,
+                                Err(e) => println!("[!] Invalid header, skipped: {}", e),
+                            }
+                        }
+                        None => println!("[!] Expected 'Key: Value' format, skipped."),
                     }
                 }
-                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-                settings.custom_headers = new_headers;
-                println!("[+] Custom headers updated.");
+                println!("[+] {} custom header(s) updated.", added);
             }
             "b" | "back" => break,
             _ => println!("[!] Invalid choice."),
