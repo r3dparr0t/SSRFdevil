@@ -56,9 +56,16 @@ fn get_random_weighted_ua(ua_list: &[UaEntry]) -> String {
 static UA_LIST: RwLock<Vec<UaEntry>> = RwLock::new(Vec::new());
 
 pub fn init() {
-	//let settings = Settings::default(); 
-	let settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-    let list = load_user_agents(settings.ua_profile.min_weight());
+    // ۱. فقط مقدار weight را بخوان (با قفل READ) و قفل را سریع آزاد کن
+    let min_weight = {
+        let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
+        settings.ua_profile.min_weight()
+    }; // <- قفل اینجا آزاد می‌شود
+
+    // ۲. حالا فایل را بدون در دست داشتن قفل تنظیمات بخوان
+    let list = load_user_agents(min_weight);
+
+    // ۳. لیست UA را به‌روز کن
     *UA_LIST.write().unwrap() = list;
 }
 

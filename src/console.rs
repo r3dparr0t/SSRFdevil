@@ -176,24 +176,23 @@ fn run_request_engine_menu(engine: &mut RequestEngine) {
     }
 }
 
-fn run_crawler_advanced_menu() {
+fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
     loop {
-        let (proxies_len, rotation, rate, depth, targets, save) = {
+        let (rate, depth, targets, save) = {
             let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
             (
-                settings.crawler_proxies.len(),
-                settings.crawler_proxy_rotation,
                 settings.crawler_rate_limit,
                 settings.crawler_max_depth,
                 settings.crawler_max_targets,
                 settings.crawler_save_state,
             )
         };
+        let proxies_len = crate::engine::proxy_engine::get_proxies_len();
 
         println!("\n🔍 [Menu 3] Crawler Core & Proxy Configuration");
         println!("-----------------------------------------");
         println!("    [1] Proxy List            : {} loaded", proxies_len);
-        println!("    [2] Proxy Rotation        : {}", if rotation { "ON 🔄" } else { "OFF 🛑" });
+        println!("    [2] Use Proxy             : {}", if engine.config.proxy { "ON 🔄" } else { "OFF 🛑" });
         println!("    [3] Rate Limit (Global)   : {} req/sec", if rate == 0 { "Unlimited".to_string() } else { rate.to_string() });
         println!("    [4] Max Crawl Depth       : {}", depth);
         println!("    [5] Max Target KillSwitch : {}", if targets == 0 { "Unlimited".to_string() } else { targets.to_string() });
@@ -205,18 +204,19 @@ fn run_crawler_advanced_menu() {
         let input = prompt(&shell_prompt(&selected_rules, "[settings->crawler]"));
 
         match input.trim() {
-            "1" => {
+            "1" | "load" => {
                 let path = prompt("Enter path to proxy list file > ");
                 if !path.is_empty() {
-                    if let Ok(content) = std::fs::read_to_string(&path) {
-                        let list: Vec<String> = content.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
-                        crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_proxies = list;
-                    }
+                    let n = crate::engine::proxy_engine::load_proxies_from_file(&path, &engine.config);
+                    println!("[+] {} proxy client(s) ready.", n);
                 }
             }
             "2" => {
-                let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-                settings.crawler_proxy_rotation = !settings.crawler_proxy_rotation;
+                if !engine.config.proxy && proxies_len == 0 {
+                    println!("[!] Proxy list is empty. Load a proxy list first (option 1).");
+                } else {
+                    engine.config.proxy = !engine.config.proxy;
+                }
             }
             "3" => {
                 if let Some(r) = prompt_i32("Enter rate limit (req/s, 0 for unlimited) > ") {
@@ -259,7 +259,7 @@ fn run_settings_menu(engine: &mut RequestEngine,) {
         match input.trim() {
             "1" => run_ua_headers_menu(),
             "2" => run_request_engine_menu(engine),
-            "3" => run_crawler_advanced_menu(),
+            "3" => run_crawler_advanced_menu(engine),
             "b" | "back" | "quit" | "exit" => break,
             _ => println!("[!] Unknown option."),
         }

@@ -4,7 +4,7 @@ use reqwest::Client;
 use crate::engine::{
     request::RequestData,
     response::ResponseData,
-    {delay_engine, header_engine, ua_engine, cookie_engine, trace_engine}
+    {delay_engine, header_engine, ua_engine, cookie_engine, trace_engine, proxy_engine}
 };
 
 #[derive(Clone)]
@@ -66,10 +66,8 @@ impl RequestEngine {
     	}
         // add cookie jar.
         builder = builder.cookie_store(true);
-		// check if proxy is set
-		/*if self.config.proxy {
-			builder = builder.proxy(reqwest::Proxy::all("http://127.1:8080"));
-		}*/
+        // پروکسی دیگر اینجا bake نمی‌شود؛ چون هر پروکسی یک Client جداست
+        // (به‌خاطر rotation)، انتخابش موقع send() از proxy_engine انجام می‌شود.
         RequestEngine {
             client: builder.build().unwrap(),
             config,
@@ -97,8 +95,16 @@ impl RequestEngine {
             trace_engine::before(&req_data);
         }
 
+        // انتخاب کلاینت: فقط وقتی پروکسی فعال است و pool خالی نیست، یک
+        // کلاینتِ پروکسی‌دار تصادفی انتخاب می‌شود؛ در غیر این صورت کلاینت پیش‌فرض.
+        let client = if self.config.proxy && proxy_engine::get_proxies_len() > 0 {
+            proxy_engine::pick().unwrap_or_else(|| self.client.clone())
+        } else {
+            self.client.clone()
+        };
+
         // تبدیل مدل داده‌ی ما به درخواستِ واقعیِ Reqwest
-        let mut builder = self.client.request(req_data.method, req_data.url)
+        let mut builder = client.request(req_data.method, req_data.url)
             .headers(req_data.headers);
 
         if let Some(body_bytes) = req_data.body {
