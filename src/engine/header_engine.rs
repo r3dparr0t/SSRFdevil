@@ -4,6 +4,14 @@ use reqwest::header::{
     HeaderName,
     HeaderValue
 };
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, RwLock}
+};
+
+// استفاده از LazyLock برای مقداردهی اولیه در static
+static CUSTOM_HEADERS: LazyLock<RwLock<HashMap<String, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 // پروفایل بومی کروم - هر هدر پیش‌فرض یک ردیف اینجا. اضافه/حذف کردن هدر پیش‌فرض
 // فقط با دستکاری همین آرایه انجام می‌شود، نه insert جداگانه.
@@ -42,40 +50,36 @@ pub fn add_custom_header(key: &str, value: &str) -> Result<(), String> {
 	HeaderName::try_from(key).map_err(|e| e.to_string())?;
 	HeaderValue::try_from(value).map_err(|e| e.to_string())?;
 
-	let settings = crate::config::APP_SETTINGS.get().ok_or("settings not initialized, try another one.")?;
-	settings.write().unwrap().custom_headers.insert(key.to_string(), value.to_string());
+	CUSTOM_HEADERS.write().unwrap().insert(key.to_string(), value.to_string());
 	Ok(())
 }
 
 pub fn clear_custom_headers() {
-	if let Some(settings) = crate::config::APP_SETTINGS.get() {
-		settings.write().unwrap().custom_headers.clear();
-	}
+    CUSTOM_HEADERS.write().unwrap().clear();
 }
 
 fn inject_custom_headers(headers: &mut HeaderMap) {
-	let settings = match crate::config::APP_SETTINGS.get() {
-		Some(s) => s,
-		None => return,
-	};
-	let custom = &settings.read().unwrap().custom_headers;
-	if custom.is_empty() { return; }
+    let custom = CUSTOM_HEADERS.read().unwrap();
+    if custom.is_empty() { return; }
 
-	for (k, v) in custom.iter() {
-		match (HeaderName::try_from(k.as_str()), HeaderValue::try_from(v.as_str())) {
-			(Ok(name), Ok(value)) => {
-				if headers.contains_key(&name) {
-					// تکراری با یکی از پیش‌فرض‌ها - پیش‌فرض حفظ می‌شود
-					continue;
-				}
-				headers.insert(name, value);
-			}
-			_ => {
-				// کلید یا مقدار نامعتبر - نادیده گرفته می‌شود تا کل ریکوئست fail نشود
-				eprintln!("[⚠️] Invalid custom header skipped: '{}: {}'", k, v);
-			}
-		}
-	}
+    for (k, v) in custom.iter() {
+        match (HeaderName::try_from(k.as_str()), HeaderValue::try_from(v.as_str())) {
+            (Ok(name), Ok(value)) => {
+                if !headers.contains_key(&name) {
+                    headers.insert(name, value);
+                }
+                // در غیر این صورت هدر تکراری با پیش‌فرض است و نادیده گرفته می‌شود
+            }
+            _ => {
+                eprintln!("[⚠️] Invalid custom header skipped: '{}: {}'", k, v);
+            }
+        }
+    }
+}
+
+/// تابع جدید برای گرفتن تعداد هدرهای سفارشی
+pub fn get_custom_headers_len() -> usize {
+    CUSTOM_HEADERS.read().unwrap().len()
 }
 
 //inject_browser_headers()

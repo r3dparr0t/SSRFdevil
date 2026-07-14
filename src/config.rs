@@ -1,6 +1,5 @@
 // config.rs
 use std::sync::{OnceLock, RwLock};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UaProfile {
@@ -30,7 +29,7 @@ impl UaProfile {
 pub struct Settings {
     // --- تنظیمات عمومی و اسکنر ---
     pub ua_profile: UaProfile,
-    pub custom_headers: HashMap<String, String>,
+    //pub custom_headers: HashMap<String, String>,
     //pub timeout: i32,
     pub threads: i32,
     pub delay_min: u64,
@@ -53,7 +52,7 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             ua_profile: UaProfile::Balanced,
-            custom_headers: HashMap::new(),
+            //custom_headers: HashMap::new(),
            
             //timeout: 5,
             threads: 10, // این همون مقدار ماکسیمم همزمانی (Worker Count) خواهد بود

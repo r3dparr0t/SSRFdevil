@@ -68,7 +68,7 @@ fn run_ua_headers_menu() {
     loop {
         let (ua_label, headers_count) = {
             let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
-            (settings.ua_profile.label().to_string(), settings.custom_headers.len())
+            (settings.ua_profile.label().to_string(), crate::engine::header_engine::get_custom_headers_len())
         };
 
         println!("\n📝 [Menu 1] User-Agent & Custom Headers");
