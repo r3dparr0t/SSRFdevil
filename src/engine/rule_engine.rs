@@ -5,7 +5,7 @@ use std::{
     {error::Error, fs}
 };
 
-use crate::rule::RuleFile;
+use crate::engine::rule::RuleFile;
 
 pub static SELECTED_RULES: RwLock<Vec<RuleFile>> = RwLock::new(Vec::new());
 

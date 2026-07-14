@@ -14,3 +14,4 @@ pub use response::ResponseData;
 pub use request_engine::{RequestEngine, EngineConfig, RedirectPolicy};
 
 pub mod rule_engine;
+pub mod rule;
