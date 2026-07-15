@@ -45,33 +45,35 @@ impl Default for EngineConfig {
 
 #[derive(Clone)]
 pub struct RequestEngine {
-    client: Client,
+    // کلاینت پایه برای مواقعی که پروکسی خاموش است یا وجود ندارد
+    base_client: Client,
     pub config: EngineConfig,
 }
 
 impl RequestEngine {
     pub fn new(config: EngineConfig) -> Self {
-        let mut builder = Client::builder()
-        	.timeout(config.timeout);
-        	//.cookie_store(true);
+        let builder = Self::configure_builder(Client::builder(), &config);
+        RequestEngine {
+            base_client: builder.build().unwrap(),
+            config,
+        }
+    }
+
+    // متد کمکی برای تنظیم یکسان پارامترهای کلاینت‌ها
+    fn configure_builder(mut builder: reqwest::ClientBuilder, config: &EngineConfig) -> reqwest::ClientBuilder {
+        builder = builder.timeout(config.timeout).cookie_store(true);
 
         builder = match config.redirects {
             RedirectPolicy::None => builder.redirect(reqwest::redirect::Policy::none()),
             RedirectPolicy::Limited(n) => builder.redirect(reqwest::redirect::Policy::limited(n)),
             RedirectPolicy::Follow => builder.redirect(reqwest::redirect::Policy::default()),
         };
-        //builder = builder.danger_accept_invalid_certs(true);
-		if !config.verify_tls {
-    		builder = builder.danger_accept_invalid_certs(true);
-    	}
-        // add cookie jar.
-        builder = builder.cookie_store(true);
-        // پروکسی دیگر اینجا bake نمی‌شود؛ چون هر پروکسی یک Client جداست
-        // (به‌خاطر rotation)، انتخابش موقع send() از proxy_engine انجام می‌شود.
-        RequestEngine {
-            client: builder.build().unwrap(),
-            config,
+
+        if !config.verify_tls {
+            builder = builder.danger_accept_invalid_certs(true);
         }
+
+        builder
     }
 
     pub async fn send(&self, mut req_data: RequestData) -> Result<ResponseData, reqwest::Error> {
@@ -95,18 +97,24 @@ impl RequestEngine {
             trace_engine::before(&req_data);
         }
 
-        // انتخاب کلاینت: فقط وقتی پروکسی فعال است و pool خالی نیست، یک
-        // کلاینتِ پروکسی‌دار انتخاب می‌شود؛ در غیر این صورت کلاینت پیش‌فرض
-		// کلاینتِ پروکسی دار انتخاب می شود
-		let client = if self.config.proxy {
-   			 match proxy_engine::pick().await {
-       			Some(c) => c,
-       			None => {
-            	println!("[⚠️] No proxy available, falling back to default client");
-	            self.client.clone()
-        		}
-   			}
-		} else { self.client.clone()};
+        // انتخاب هوشمند کلاینت:
+        // اگر پروکسی فعال باشد، درجا یک کلاینت سبک و موقت با استفاده از پروکسیِ استخراج‌شده می‌سازیم.
+        let client: Client = if self.config.proxy {
+            match proxy_engine::pick().await {
+                Some(proxy_obj) => {
+                    let builder = Client::builder().proxy(proxy_obj);
+                    // اعمال سایر تنظیمات به شکل یکنواخت روی کلاینت موقت
+                    Self::configure_builder(builder, &self.config).build().unwrap()
+                }
+                None => {
+                    println!("[⚠️] No proxy available, falling back to default client");
+                    self.base_client.clone()
+                }
+            }
+        } else { 
+            self.base_client.clone()
+        };
+
         // تبدیل مدل داده‌ی ما به درخواستِ واقعیِ Reqwest
         let mut builder = client.request(req_data.method, req_data.url)
             .headers(req_data.headers);
@@ -115,21 +123,24 @@ impl RequestEngine {
             builder = builder.body(body_bytes);
         }
 
-        // شلیک نهایی
-        let response = builder.send().await?;
+        // شلیک نهایی (مشخص کردن نوع داده برای استنباط دقیق کامپایلر)
+        let response: reqwest::Response = builder.send().await?;
         
-        let final_url = response.url().clone();   // ← این خط رو اضافه کن
-        
+        let final_url = response.url().clone();
         let status = response.status().as_u16();
         let headers = response.headers().clone();
-        let body = response.bytes().await?.to_vec();
+        
+        // استخراج بایت‌ها به صورت صریح برای برطرف کردن ارور استنباط نوع
+        let bytes_data = response.bytes().await?;
+        let body = bytes_data.to_vec();
         
         let res_data = ResponseData {
-            url: final_url,           // ← اینم اضافه کن
+            url: final_url,
             status,
             headers,
             body,
         };
+
         // ۴. Trace After
         if self.config.trace {
             trace_engine::after(&res_data);
