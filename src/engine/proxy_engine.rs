@@ -1,23 +1,28 @@
 use reqwest::Client;
-use std::sync::{LazyLock, atomic::{AtomicUsize, Ordering}, RwLock as StdRwLock};
+use std::sync::{LazyLock, atomic::{AtomicUsize, AtomicBool, Ordering}, RwLock as StdRwLock};
 use crate::engine::request_engine::{EngineConfig, RedirectPolicy};
 use std::fs;
 use indicatif::{ProgressBar, ProgressStyle};
 use futures::stream::{FuturesUnordered, StreamExt};
+use std::thread;
+use std::io::{self, Read};
 
 const PROXY_PROBE_URL: &str = "https://cloudflare.com/cdn-cgi/trace";
 const MAX_CONCURRENT_PROBES: usize = 50; 
 
-// استفاده از std::sync::RwLock سنکرون برای فرار از پنیک بلاک کردن ترد در توکیو
+// استخر لغزنده پروکسی‌های کاملاً زنده
 static LIVE_PROXIES: LazyLock<StdRwLock<Vec<(Client, String)>>> =
     LazyLock::new(|| StdRwLock::new(Vec::new()));
 
 static NEXT_INDEX: AtomicUsize = AtomicUsize::new(0);
 
+// پرچم کنترل خروج اضطراری با کلید q
+static CANCEL_PROBING: AtomicBool = AtomicBool::new(false);
+
 pub async fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
     println!("[⚙️ DEBUG] load_proxies_from_file() triggered. Target path: {}", path);
 
-    // ۱. خواندن فایل پروکسی‌ها به صورت کامل در یک آرایه رشته‌ای
+    // ۱. خواندن فایل پروکسی‌ها به صورت کامل
     println!("[⚙️ DEBUG] Reading proxy file contents into memory...");
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
@@ -41,10 +46,26 @@ pub async fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
         return 0;
     }
 
-    // ۲. نمایش پیغام صمیمانه انگلیسی
-    println!("\n[🔍] Let's check your proxies, bro... Let's see which ones are alive and which ones are dead!");
+    // ۲. نمایش پیغام و راهنمای کلید خروج اضطراری
+    println!("\n[🤖] Let's check your proxies... I'm going to drop the dead ones!\n[💡] Bored? Type 'q' and press Enter at any time to save live ones and quit scanning!");
+    // ریست کردن پرچم انصراف قبل از شروع کار
+    CANCEL_PROBING.store(false, Ordering::SeqCst);
 
-    // ۳. ساخت پروسس‌بار شکیل
+    // ۳. لانچ کردن ترد شنود کیبورد در پس‌زمینه (Listener Thread)
+    thread::spawn(move || {
+        let mut buffer = [0; 1];
+        let mut stdin = io::stdin();
+        // خواندن بایت به بایت برای تشخیص زدن کلید q
+        while let Ok(n) = stdin.read(&mut buffer) {
+            if n > 0 && (buffer[0] == b'q' || buffer[0] == b'Q') {
+                println!("\n[⚠️] Emergency stop signal received! Wrapping up current probes...");
+                CANCEL_PROBING.store(true, Ordering::SeqCst);
+                break;
+            }
+        }
+    });
+
+    // ۴. ساخت پروسس‌بار
     let bar = ProgressBar::new(total_loaded as u64);
     bar.set_style(
         ProgressStyle::default_bar()
@@ -60,14 +81,23 @@ pub async fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
 
     bar.set_message("0");
 
-    // ۴. شروع تست موازی شلاقی با توکیو
+    // ۵. شروع تست موازی با قابلیت خروج اضطراری آنی
     while tested_count < total_loaded || !active_tasks.is_empty() {
         
+        // اگر کاربر در پس‌زمینه q زده بود، درجا متوقف کن
+        if CANCEL_PROBING.load(Ordering::SeqCst) {
+            break;
+        }
+
         while active_tasks.len() < MAX_CONCURRENT_PROBES && tested_count < total_loaded {
+            // یک بار دیگر قبل از ایجاد تسک جدید چک می‌کنیم تا بلافاصله متوقف شود
+            if CANCEL_PROBING.load(Ordering::SeqCst) {
+                break;
+            }
+
             let url = raw_urls[tested_count].clone();
             let cfg_inner = cfg.clone();
             
-            // پرتاب تسک موازی
             active_tasks.push(async move {
                 build_and_probe_client(url, cfg_inner).await
             });
@@ -84,12 +114,17 @@ pub async fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
         }
     }
 
-    bar.finish_with_message(format!("{} (Scan completed)", live_count));
+    // بستن پروسس‌بار با پیام مناسب بسته به نوع خروج
+    if CANCEL_PROBING.load(Ordering::SeqCst) {
+        bar.finish_with_message(format!("{} (Scan cancelled by user)", live_count));
+    } else {
+        bar.finish_with_message(format!("{} (Scan completed)", live_count));
+    }
 
-    // ۵. تصفیه و ذخیره فقط زنده‌ها در استخر لغزنده
+    // ۶. ذخیره کردن همان تعداد پروکسی زنده که تا این لحظه یافت شده بودند
     let final_live_count = live_list.len();
     println!(
-        "\n[✅] Filters applied! Keep: {} live nodes. Dead nodes purged.", 
+        "\n[✅] Finalizing... Kept: {} live nodes. Dead/Unreached nodes filtered out.", 
         final_live_count
     );
 
@@ -104,7 +139,6 @@ pub async fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
     final_live_count
 }
 
-// انتخاب پروکسی به شیوه نوبتی چرخشی (Round-Robin)
 pub async fn pick() -> Option<Client> {
     println!("[⚙️ DEBUG] pick() called. Attempting to lock sliding pool...");
     let pool = LIVE_PROXIES.read().unwrap();
@@ -132,7 +166,6 @@ pub async fn pick() -> Option<Client> {
 async fn build_and_probe_client(url: String, cfg: EngineConfig) -> Option<(Client, String)> {
     let proxy = reqwest::Proxy::all(&url).ok()?;
 
-    // پینگ ۱.۵ ثانیه‌ای؛ برای اینکه وقت ارزشمند کاربر برای پروکسی‌های کند تلف نشود
     let test_builder = Client::builder()
         .timeout(std::time::Duration::from_millis(1500)) 
         .proxy(proxy)
@@ -185,7 +218,6 @@ pub async fn clear_proxies() {
     println!("[⚙️ DEBUG] Sliding pool is now 100% clean.");
 }
 
-// حل نهایی پنیک: استفاده از قفل سنکرون استاندارد بدون نیاز به بلاک کردن آسنک توکیو
 pub fn get_proxies_len() -> usize {
     let pool = match LIVE_PROXIES.read() {
         Ok(guard) => guard,

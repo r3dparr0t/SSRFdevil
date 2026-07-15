@@ -26,4 +26,5 @@ serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1.0"
 sled = "0.34.7"
+terminal-menu = "3.1.0"
 url = { version = "2.5.8", features = ["serde"] }
