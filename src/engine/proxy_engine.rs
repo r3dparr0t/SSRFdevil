@@ -1,38 +1,24 @@
-// engine/proxy_engine.rs
 use reqwest::Client;
-use std::sync::{LazyLock, RwLock, atomic::{AtomicUsize, AtomicBool, Ordering}};
+use std::sync::{LazyLock, atomic::{AtomicUsize, Ordering}, RwLock as StdRwLock};
 use crate::engine::request_engine::{EngineConfig, RedirectPolicy};
 use std::fs;
+use indicatif::{ProgressBar, ProgressStyle};
+use futures::stream::{FuturesUnordered, StreamExt};
 
-// ظرفیت چانک‌های استخر فعال
-const POOL_CAPACITY: usize = 50;
-const REFILL_THRESHOLD: usize = 25;
+const PROXY_PROBE_URL: &str = "https://cloudflare.com/cdn-cgi/trace";
+const MAX_CONCURRENT_PROBES: usize = 50; 
 
-// ۱. لیست کل آدرس‌های خام پروکسی به صورت رشته
-static ALL_PROXY_URLS: LazyLock<RwLock<Vec<String>>> =
-    LazyLock::new(|| RwLock::new(Vec::new()));
+// استفاده از std::sync::RwLock سنکرون برای فرار از پنیک بلاک کردن ترد در توکیو
+static LIVE_PROXIES: LazyLock<StdRwLock<Vec<(Client, String)>>> =
+    LazyLock::new(|| StdRwLock::new(Vec::new()));
 
-// ۲. ایندکس پروکسی بعدی در فایل که باید کلاینت آن ساخته شود
-static NEXT_PROXY_INDEX: AtomicUsize = AtomicUsize::new(0);
+static NEXT_INDEX: AtomicUsize = AtomicUsize::new(0);
 
-// ۳. استخر کلاینت‌های فعال آماده‌ی مصرف (با پاپ کردن، از اینجا کم می‌شوند)
-static PROXY_CLIENTS: LazyLock<RwLock<Vec<Client>>> =
-    LazyLock::new(|| RwLock::new(Vec::new()));
+pub async fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
+    println!("[⚙️ DEBUG] load_proxies_from_file() triggered. Target path: {}", path);
 
-// ۴. وضعیت اتمیک برای اینکه فقط یک ترد همزمان مسئول شارژ پس‌زمینه باشد
-static IS_REFILLING: AtomicBool = AtomicBool::new(false);
-
-// ۵. ذخیره کانفیگ برای ساخت کلاینت‌های جدید در پس‌زمینه
-static ENGINE_CONFIG_CACHE: LazyLock<RwLock<Option<EngineConfig>>> =
-    LazyLock::new(|| RwLock::new(None));
-
-pub fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
-    // ریست کردن تمام وضعیت‌ها به حالت اولیه
-    PROXY_CLIENTS.write().unwrap().clear();
-    NEXT_PROXY_INDEX.store(0, Ordering::SeqCst);
-    IS_REFILLING.store(false, Ordering::SeqCst);
-
-    println!("[📂] Reading proxy list: {}", path);
+    // ۱. خواندن فایل پروکسی‌ها به صورت کامل در یک آرایه رشته‌ای
+    println!("[⚙️ DEBUG] Reading proxy file contents into memory...");
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
@@ -41,157 +27,172 @@ pub fn load_proxies_from_file(path: &str, cfg: &EngineConfig) -> usize {
         }
     };
 
-    let urls: Vec<String> = content
+    let raw_urls: Vec<String> = content
         .lines()
         .map(|l| l.trim().to_string())
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .collect();
 
-    if urls.is_empty() {
+    let total_loaded = raw_urls.len();
+    println!("[⚙️ DEBUG] Successfully parsed {} raw URLs from file.", total_loaded);
+
+    if total_loaded == 0 {
         println!("[⚠️] Proxy list is empty.");
         return 0;
     }
 
-    let n = urls.len();
-    *ALL_PROXY_URLS.write().unwrap() = urls;
-    *ENGINE_CONFIG_CACHE.write().unwrap() = Some(cfg.clone());
+    // ۲. نمایش پیغام صمیمانه انگلیسی
+    println!("\n[🔍] Let's check your proxies, bro... Let's see which ones are alive and which ones are dead!");
 
-    // 🟢 پر کردن اولیه استخر (فقط ۵۰ تای اول)
-    let mut initial_pool = Vec::new();
-    let urls_back = ALL_PROXY_URLS.read().unwrap();
-    let limit = std::cmp::min(n, POOL_CAPACITY);
+    // ۳. ساخت پروسس‌بار شکیل
+    let bar = ProgressBar::new(total_loaded as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} | Live found: {msg}")
+            .unwrap()
+            .progress_chars("#>-")
+    );
 
-    for i in 0..limit {
-        if let Ok(client) = build_client_for(&urls_back[i], cfg) {
-            initial_pool.push(client);
-        }
-    }
-    
-    NEXT_PROXY_INDEX.store(limit, Ordering::SeqCst);
-    let built_count = initial_pool.len();
-    *PROXY_CLIENTS.write().unwrap() = initial_pool;
+    let mut active_tasks = FuturesUnordered::new();
+    let mut tested_count = 0;
+    let mut live_list: Vec<(Client, String)> = Vec::new();
+    let mut live_count = 0;
 
-    println!("[✅] Successfully cached {} URLs. Pool pre-filled with {} active clients.", n, built_count);
-    n
-}
+    bar.set_message("0");
 
-/// انتخاب کلاینت: یک کلاینت را واقعاً از استخر پاپ می‌کند و برمی‌گرداند (مصرف واقعی)
-pub fn pick() -> Option<Client> {
-    let mut pool = PROXY_CLIENTS.write().unwrap();
-    
-    if pool.is_empty() {
-        // اگر استخر کاملاً خالی بود، فلگ را دستی آزاد می‌کنیم تا شارژ فوری شلیک شود
-        drop(pool);
-        trigger_background_refill();
-        return None; 
-    }
-
-    // پاپ کردن کلاینت (حذف از استخر و کاهش واقعی طول آن)
-    let client = pool.pop();
-    let current_len = pool.len();
-    
-    // همیشه قبل از فرخواندن تابع کمکی لاک را آزاد می‌کنیم تا بن‌بست ایجاد نشود
-    drop(pool);
-
-    // اگر موجودی کلاینت‌ها به زیر نصف (۲۵ تا) رسید، در پس‌زمینه چانک بعدی را بارگذاری کن
-    if current_len <= REFILL_THRESHOLD {
-        trigger_background_refill();
-    }
-
-    client
-}
-
-fn trigger_background_refill() {
-    // تلاش برای تصاحب فلگ شارژ (اگر در حال شارژ است، دیگر تسکی شلیک نکن)
-    if IS_REFILLING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
-        return;
-    }
-
-    // شلیک به پس‌زمینه توکیو (غیرمسدودکننده برای منو و ترد اصلی)
-    tokio::spawn(async move {
-        let urls = ALL_PROXY_URLS.read().unwrap();
-        let total_urls = urls.len();
-        let current_idx = NEXT_PROXY_INDEX.load(Ordering::SeqCst);
-
-        // اگر به انتهای لیست پروکسی‌ها رسیدیم، دوباره از ایندکس صفر (چرخشی) شروع می‌کنیم
-        let start_idx = if current_idx >= total_urls { 0 } else { current_idx };
+    // ۴. شروع تست موازی شلاقی با توکیو
+    while tested_count < total_loaded || !active_tasks.is_empty() {
         
-        let cfg_opt = ENGINE_CONFIG_CACHE.read().unwrap();
-        if let Some(cfg) = cfg_opt.as_ref() {
-            let limit = std::cmp::min(total_urls - start_idx, POOL_CAPACITY);
-            let mut new_clients = Vec::new();
-
-            for i in 0..limit {
-                let target_url = &urls[start_idx + i];
-                if let Ok(client) = build_client_for(target_url, cfg) {
-                    new_clients.push(client);
-                }
-            }
-
-            if !new_clients.is_empty() {
-                // به‌روزرسانی ایندکس برای چانک‌های بعدی
-                NEXT_PROXY_INDEX.store(start_idx + limit, Ordering::SeqCst);
-                
-                // تزریق کلاینت‌های ترتیبی جدید به انتهای استخر فعال
-                if let Ok(mut pool) = PROXY_CLIENTS.write() {
-                    pool.extend(new_clients);
-                }
-            }
+        while active_tasks.len() < MAX_CONCURRENT_PROBES && tested_count < total_loaded {
+            let url = raw_urls[tested_count].clone();
+            let cfg_inner = cfg.clone();
+            
+            // پرتاب تسک موازی
+            active_tasks.push(async move {
+                build_and_probe_client(url, cfg_inner).await
+            });
+            tested_count += 1;
         }
 
-        // آزاد کردن فلگ شارژ پس‌زمینه
-        IS_REFILLING.store(false, Ordering::SeqCst);
-    });
+        if let Some(opt_result) = active_tasks.next().await {
+            bar.inc(1);
+            if let Some((client, url)) = opt_result {
+                live_count += 1;
+                bar.set_message(live_count.to_string());
+                live_list.push((client, url));
+            }
+        }
+    }
+
+    bar.finish_with_message(format!("{} (Scan completed)", live_count));
+
+    // ۵. تصفیه و ذخیره فقط زنده‌ها در استخر لغزنده
+    let final_live_count = live_list.len();
+    println!(
+        "\n[✅] Filters applied! Keep: {} live nodes. Dead nodes purged.", 
+        final_live_count
+    );
+
+    {
+        println!("[⚙️ DEBUG] Locking sliding pool to update live clients list...");
+        let mut guard = LIVE_PROXIES.write().unwrap();
+        *guard = live_list;
+        NEXT_INDEX.store(0, Ordering::SeqCst);
+        println!("[⚙️ DEBUG] Update finished. Sliding pool index reset to 0.");
+    }
+
+    final_live_count
 }
 
-pub fn set_proxies(urls: Vec<String>, cfg: &EngineConfig) -> usize {
-    let n = urls.len();
-    *ALL_PROXY_URLS.write().unwrap() = urls;
-    *ENGINE_CONFIG_CACHE.write().unwrap() = Some(cfg.clone());
-    NEXT_PROXY_INDEX.store(0, Ordering::SeqCst);
-    PROXY_CLIENTS.write().unwrap().clear();
-    IS_REFILLING.store(false, Ordering::SeqCst);
-    n
+// انتخاب پروکسی به شیوه نوبتی چرخشی (Round-Robin)
+pub async fn pick() -> Option<Client> {
+    println!("[⚙️ DEBUG] pick() called. Attempting to lock sliding pool...");
+    let pool = LIVE_PROXIES.read().unwrap();
+    let pool_len = pool.len();
+
+    println!("[⚙️ DEBUG] Current pool capacity: {} nodes.", pool_len);
+
+    if pool_len == 0 {
+        println!("[⚠️ DEBUG] pick() failed: Sliding pool is empty!");
+        return None;
+    }
+
+    let current_idx = NEXT_INDEX.fetch_add(1, Ordering::SeqCst);
+    let target_idx = current_idx % pool_len;
+
+    let (client, url) = &pool[target_idx];
+    println!(
+        "[⚙️ PROXY] Sliding Pool rotating to index #{}: {}", 
+        target_idx, url
+    );
+
+    Some(client.clone())
 }
 
-pub fn clear_proxies() {
-    ALL_PROXY_URLS.write().unwrap().clear();
-    PROXY_CLIENTS.write().unwrap().clear();
-    *ENGINE_CONFIG_CACHE.write().unwrap() = None;
-    NEXT_PROXY_INDEX.store(0, Ordering::SeqCst);
-    IS_REFILLING.store(false, Ordering::SeqCst);
+async fn build_and_probe_client(url: String, cfg: EngineConfig) -> Option<(Client, String)> {
+    let proxy = reqwest::Proxy::all(&url).ok()?;
+
+    // پینگ ۱.۵ ثانیه‌ای؛ برای اینکه وقت ارزشمند کاربر برای پروکسی‌های کند تلف نشود
+    let test_builder = Client::builder()
+        .timeout(std::time::Duration::from_millis(1500)) 
+        .proxy(proxy)
+        .cookie_store(true)
+        .danger_accept_invalid_certs(!cfg.verify_tls);
+
+    let test_client = if cfg.http2 {
+        test_builder.use_rustls_tls().build().ok()?
+    } else {
+        test_builder.build().ok()?
+    };
+
+    let response = test_client.get(PROXY_PROBE_URL).send().await.ok()?;
+    if response.status().is_success() || response.status().is_redirection() {
+        build_final_client(&url, &cfg).ok().map(|c| (c, url))
+    } else {
+        None
+    }
 }
 
-pub fn get_proxies_len() -> usize {
-    ALL_PROXY_URLS.read().unwrap().len()
-}
-
-fn build_client_for(url: &str, cfg: &EngineConfig) -> Result<Client, String> {
-    let proxy = reqwest::Proxy::all(url).map_err(|e| e.to_string())?;
+fn build_final_client(url: &str, cfg: &EngineConfig) -> Result<Client, reqwest::Error> {
+    let proxy = reqwest::Proxy::all(url)?;
 
     let mut builder = Client::builder()
         .timeout(cfg.timeout)
         .proxy(proxy)
-        .cookie_store(true);
+        .cookie_store(true)
+        .danger_accept_invalid_certs(!cfg.verify_tls);
 
     builder = match cfg.redirects {
         RedirectPolicy::None => builder.redirect(reqwest::redirect::Policy::none()),
         RedirectPolicy::Follow => builder.redirect(reqwest::redirect::Policy::default()),
         RedirectPolicy::Limited(n) => builder.redirect(reqwest::redirect::Policy::custom(move |attempt| {
-            if attempt.previous().len() >= n {
-                attempt.stop()
-            } else {
-                attempt.follow()
-            }
+            if attempt.previous().len() >= n { attempt.stop() } else { attempt.follow() }
         })),
     };
 
-    if !cfg.verify_tls {
-        builder = builder.danger_accept_invalid_certs(true);
-    }
     if cfg.http2 {
         builder = builder.use_rustls_tls();
     }
 
-    builder.build().map_err(|e| e.to_string())
+    builder.build()
+}
+
+pub async fn clear_proxies() {
+    println!("[⚙️ DEBUG] clear_proxies() called. Purging sliding pool...");
+    let mut guard = LIVE_PROXIES.write().unwrap();
+    guard.clear();
+    NEXT_INDEX.store(0, Ordering::SeqCst);
+    println!("[⚙️ DEBUG] Sliding pool is now 100% clean.");
+}
+
+// حل نهایی پنیک: استفاده از قفل سنکرون استاندارد بدون نیاز به بلاک کردن آسنک توکیو
+pub fn get_proxies_len() -> usize {
+    let pool = match LIVE_PROXIES.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            println!("[⚙️ DEBUG] Lock was poisoned, recovering guard...");
+            poisoned.into_inner()
+        }
+    };
+    pool.len()
 }

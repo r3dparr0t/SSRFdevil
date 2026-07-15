@@ -18,6 +18,14 @@ use crate::{
 };
 use std::sync::Arc;
 
+
+fn clear_screen() {
+    // \x1b[H کرسر را به بالا سمت چپ می‌برد
+    // \x1b[2J کل صفحه نمایش فعلی را پاک می‌کند
+    print!("\x1b[H\x1b[2J");
+    let _ = io::stdout().flush();
+}
+
 fn shell_prompt(selected: &[RuleFile], extrashell: &str) -> String {
     match selected.len() {
         0 => format!("ssrfdevil {}> ", extrashell),
@@ -66,6 +74,7 @@ fn select_ua_profile(settings: &mut Settings) {
 
 fn run_ua_headers_menu() {
     loop {
+    clear_screen();
         let (ua_label, headers_count) = {
             let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
             (settings.ua_profile.label().to_string(), crate::engine::header_engine::get_custom_headers_len())
@@ -116,6 +125,7 @@ fn run_ua_headers_menu() {
 
 fn run_request_engine_menu(engine: &mut RequestEngine) {
     loop {
+        clear_screen();
         let (threads, runtime, delay_min, delay_max) = {
             let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
             (
@@ -176,8 +186,9 @@ fn run_request_engine_menu(engine: &mut RequestEngine) {
     }
 }
 
-fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
+async fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
     loop {
+        clear_screen();
         let (rate, depth, targets, save) = {
             let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
             (
@@ -207,8 +218,8 @@ fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
             "1" | "load" => {
                 let path = prompt("Enter path to proxy list file > ");
                 if !path.is_empty() {
-                    let n = crate::engine::proxy_engine::load_proxies_from_file(&path, &engine.config);
-                    println!("[+] {} proxy client(s) ready.", n);
+                    let n = crate::engine::proxy_engine::load_proxies_from_file(&path, &engine.config).await;
+                   println!("[+] {} proxy client(s) ready.", crate::engine::proxy_engine::get_proxies_len());
                 }
             }
             "2" => {
@@ -243,8 +254,9 @@ fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
     }
 }
 
-fn run_settings_menu(engine: &mut RequestEngine,) {
+async fn run_settings_menu(engine: &mut RequestEngine,) {
     loop {
+        clear_screen();
         println!("\n⚙️  SSRFdevil Core Settings");
         println!("=========================================");
         println!("    [1] User-Agent & Custom Headers Menu --->");
@@ -259,7 +271,7 @@ fn run_settings_menu(engine: &mut RequestEngine,) {
         match input.trim() {
             "1" => run_ua_headers_menu(),
             "2" => run_request_engine_menu(engine),
-            "3" => run_crawler_advanced_menu(engine),
+            "3" => run_crawler_advanced_menu(engine).await,
             "b" | "back" | "quit" | "exit" => break,
             _ => println!("[!] Unknown option."),
         }
@@ -284,7 +296,7 @@ pub async fn run_interactive_console(
         match cmd {
             "help" | "?" => print_help(),
             "settings" => {
-                run_settings_menu(engine); 
+                run_settings_menu(engine).await; 
             }
             "search" => {
                 last_results = rule_engine::search_rules(db, arg);

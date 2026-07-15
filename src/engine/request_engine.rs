@@ -96,13 +96,17 @@ impl RequestEngine {
         }
 
         // انتخاب کلاینت: فقط وقتی پروکسی فعال است و pool خالی نیست، یک
-        // کلاینتِ پروکسی‌دار تصادفی انتخاب می‌شود؛ در غیر این صورت کلاینت پیش‌فرض.
-        let client = if self.config.proxy && proxy_engine::get_proxies_len() > 0 {
-            proxy_engine::pick().unwrap_or_else(|| self.client.clone())
-        } else {
-            self.client.clone()
-        };
-
+        // کلاینتِ پروکسی‌دار انتخاب می‌شود؛ در غیر این صورت کلاینت پیش‌فرض
+		// کلاینتِ پروکسی دار انتخاب می شود
+		let client = if self.config.proxy {
+   			 match proxy_engine::pick().await {
+       			Some(c) => c,
+       			None => {
+            	println!("[⚠️] No proxy available, falling back to default client");
+	            self.client.clone()
+        		}
+   			}
+		} else { self.client.clone()};
         // تبدیل مدل داده‌ی ما به درخواستِ واقعیِ Reqwest
         let mut builder = client.request(req_data.method, req_data.url)
             .headers(req_data.headers);
