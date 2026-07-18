@@ -96,24 +96,25 @@ impl RequestEngine {
         if self.config.trace {
             trace_engine::before(&req_data);
         }
-
-        // انتخاب هوشمند کلاینت:
-        // اگر پروکسی فعال باشد، درجا یک کلاینت سبک و موقت با استفاده از پروکسیِ استخراج‌شده می‌سازیم.
+        // در متد send داخل request_engine.rs
         let client: Client = if self.config.proxy {
+            // برداشت مستقیم از استخر لغزنده دینامیک
             match proxy_engine::pick().await {
-                Some(proxy_obj) => {
-                    let builder = Client::builder().proxy(proxy_obj);
-                    // اعمال سایر تنظیمات به شکل یکنواخت روی کلاینت موقت
-                    Self::configure_builder(builder, &self.config).build().unwrap()
+                Some(fresh_client) => {
+                    // کلاینت آماده و تازه را گرفتیم
+                    fresh_client
                 }
                 None => {
-                    println!("[⚠️] No proxy available, falling back to default client");
+                    // اگر استخر موقتاً خالی بود یا پروکسی‌ها تمام شده بودند، برنامه متوقف نمی‌شود
+                    println!("[⚠️] Proxy pool is empty or failed, falling back to default client");
                     self.base_client.clone()
                 }
             }
         } else { 
+            // حالت بدون پروکسی
             self.base_client.clone()
         };
+
 
         // تبدیل مدل داده‌ی ما به درخواستِ واقعیِ Reqwest
         let mut builder = client.request(req_data.method, req_data.url)
@@ -122,6 +123,8 @@ impl RequestEngine {
         if let Some(body_bytes) = req_data.body {
             builder = builder.body(body_bytes);
         }
+
+        // شلیک نهایی (بعد از این خط، اگر کلاینت از استخر آمده باشد، خودبه‌خود Drop و نابود می‌شود)
 
         // شلیک نهایی (مشخص کردن نوع داده برای استنباط دقیق کامپایلر)
         let response: reqwest::Response = builder.send().await?;
