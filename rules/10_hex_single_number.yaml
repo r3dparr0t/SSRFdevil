@@ -1,20 +1,25 @@
+# 10. hex_single_number.yaml
 meta:
   id: hex_single_number
-  version: 1
+  version: 2
   name: "Hexadecimal Single Number IP"
   description: "Uses single hexadecimal number for IP (0x7f000001)"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 82
   confidence: 90
   severity: high
   tags: [hex, ipv4, encoding, bypass]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [ipv4]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

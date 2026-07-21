@@ -1,20 +1,25 @@
+# 17. gcp_metadata.yaml
 meta:
   id: gcp_metadata
-  version: 1
+  version: 2
   name: "GCP Metadata Endpoint"
   description: "Access Google Cloud metadata service"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 95
   confidence: 90
   severity: critical
   tags: [gcp, metadata, cloud]
   references: []
+
 match:
-  schemes: [http]
-  requires: [hostname]
-  supports: [cloud]
+  schemes: [http, https]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

@@ -1,20 +1,25 @@
+# 9. octal_ip.yaml
 meta:
   id: octal_ip
-  version: 1
+  version: 2
   name: "Octal IP Representation"
   description: "Uses octal representation of IPv4 (0177.0.0.1)"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 78
   confidence: 90
   severity: high
   tags: [octal, ipv4, encoding, bypass]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [ipv4]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

@@ -1,11 +1,12 @@
+#2. http_redirect.yaml
 meta:
   id: http_redirect
-  version: 1
+  version: 2
   name: "HTTP Redirect to Localhost"
   description: "Uses HTTP redirect to localhost via 301/302"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 55
   confidence: 90
   severity: medium
@@ -14,15 +15,15 @@ meta:
 
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [http]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback]
+  require_params: true
 
 script:
   language: lua
   entry: bypass
   source: |
     function bypass(ctx)
-      return {
-        url = "http://localhost/redirect"
-      }
+      return { url = "http://localhost/redirect" }
     end

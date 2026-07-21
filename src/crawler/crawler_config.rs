@@ -102,6 +102,54 @@ pub enum TargetTag {
     Rss, 
 }
 
+impl TargetTag {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TargetTag::Api => "Api",
+            TargetTag::GraphQL => "GraphQL",
+            TargetTag::Rest => "Rest",
+            TargetTag::JsonRpc => "JsonRpc",
+            TargetTag::Soap => "Soap",
+            TargetTag::Form => "Form",
+            TargetTag::Upload => "Upload",
+            TargetTag::Download => "Download",
+            TargetTag::Fetch => "Fetch",
+            TargetTag::Axios => "Axios",
+            TargetTag::XmlHttpRequest => "XmlHttpRequest",
+            TargetTag::WebSocket => "WebSocket",
+            TargetTag::EventSource => "EventSource",
+            TargetTag::Js => "Js",
+            TargetTag::Css => "Css",
+            TargetTag::Json => "Json",
+            TargetTag::Xml => "Xml",
+            TargetTag::Pdf => "Pdf",
+            TargetTag::Image => "Image",
+            TargetTag::Video => "Video",
+            TargetTag::Audio => "Audio",
+            TargetTag::Media => "Media",
+            TargetTag::Robots => "Robots",
+            TargetTag::Sitemap => "Sitemap",
+            TargetTag::Manifest => "Manifest",
+            TargetTag::Canonical => "Canonical",
+            TargetTag::OpenGraph => "OpenGraph",
+            TargetTag::MetaRefresh => "MetaRefresh",
+            TargetTag::Link => "Link",
+            TargetTag::Script => "Script",
+            TargetTag::Frame => "Frame",
+            TargetTag::Iframe => "Iframe",
+            TargetTag::Login => "Login",
+            TargetTag::Logout => "Logout",
+            TargetTag::Redirect => "Redirect",
+            TargetTag::Callback => "Callback",
+            TargetTag::Webhook => "Webhook",
+            TargetTag::Atom => "Atom",
+            TargetTag::Font => "Font",
+            TargetTag::Rss => "Rss",
+        }
+    }
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Technology {
 

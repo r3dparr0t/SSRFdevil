@@ -1,20 +1,25 @@
+# 24. _10_0_0_1.yaml
 meta:
   id: _10_0_0_1
-  version: 1
+  version: 2
   name: "Internal IP 10.0.0.1"
   description: "Targets internal network gateway"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 80
   confidence: 70
   severity: high
   tags: [internal, gateway, lan]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [ipv4]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

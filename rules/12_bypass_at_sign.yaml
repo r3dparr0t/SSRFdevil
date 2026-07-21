@@ -1,20 +1,25 @@
+# 12. bypass_at_sign.yaml
 meta:
   id: bypass_at_sign
-  version: 1
+  version: 2
   name: "Bypass with @ Sign (Google.com@IP)"
   description: "Uses @ sign to confuse parser"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 75
   confidence: 85
   severity: medium
   tags: [parser, at_sign, bypass]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [http]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

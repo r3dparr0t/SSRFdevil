@@ -7,7 +7,7 @@ use std::{
 
 use sled::Db;
 use crate::{
-    executor,
+    lua_engine::executor,
     engine::{
         rule::RuleFile,
         ua_engine,
@@ -276,93 +276,15 @@ async fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
     }
 }
 
-// منوی پیکربندی پیشرفته خزنده و وضعیت پروکسی
-/*async fn run_crawler_advanced_menu(engine: &mut RequestEngine) {
-    loop {
-        let (rate, depth, targets, save) = {
-            let settings = crate::config::APP_SETTINGS.get().unwrap().read().unwrap();
-            (
-                settings.crawler_rate_limit,
-                settings.crawler_max_depth,
-                settings.crawler_max_targets,
-                settings.crawler_save_state,
-            )
-        };
-        let proxies_len = crate::engine::proxy_engine::get_proxies_len();
-
-        let crawl_menu = menu(vec![
-            label("🔍 [Menu 3] Crawler Core & Proxy Configuration"),
-            label("-----------------------------------------"),
-            button(format!("📂  Load Proxy List       : {} loaded", proxies_len)),
-            scroll("🔄  Use Proxy             ", vec![
-                if engine.config.proxy { "ON" } else { "OFF" },
-                if engine.config.proxy { "OFF" } else { "ON" }
-            ]),
-            button(format!("⚡  Rate Limit (Global)   : {} req/sec", if rate == 0 { "Unlimited".to_string() } else { rate.to_string() })),
-            button(format!("🕸️  Max Crawl Depth       : {}", depth)),
-            button(format!("🎯  Max Target KillSwitch : {}", if targets == 0 { "Unlimited".to_string() } else { targets.to_string() })),
-            scroll("💾  Save/Resume State     ", vec![
-                if save { "Enabled" } else { "Disabled" },
-                if save { "Disabled" } else { "Enabled" }
-            ]),
-            label("-----------------------------------------"),
-            back_button("⬅️  [Back]")
-        ]);
-
-        run(&crawl_menu);
-
-        let mm = mut_menu(&crawl_menu);
-        let selected = mm.selected_item_name();
-
-        if selected == "⬅️  [Back]" {
-            break;
-        }
-
-        if selected.starts_with("📂  Load Proxy") {
-            let path = prompt("Enter path to proxy list file > ");
-            if !path.is_empty() {
-                crate::engine::proxy_engine::load_proxies_from_file(&path, &engine.config).await;
-                println!("[+] {} proxy client(s) ready.", crate::engine::proxy_engine::get_proxies_len());
-                prompt("\nPress Enter to continue...");
-            }
-        } else if selected.starts_with("🔄  Use Proxy") {
-            let selected_val = mm.selection_value("🔄  Use Proxy             "); // اصلاح شد: استفاده از selection_value
-            if selected_val == "ON" && proxies_len == 0 {
-                println!("\n[!] Proxy list is empty. Load a proxy list first!");
-                engine.config.proxy = false;
-                std::thread::sleep(Duration::from_millis(1500));
-            } else {
-                engine.config.proxy = selected_val == "ON";
-            }
-        } else if selected.starts_with("⚡  Rate Limit") {
-            if let Some(r) = prompt_i32("Enter rate limit (req/s, 0 for unlimited) > ") {
-                crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_rate_limit = r as usize;
-            }
-        } else if selected.starts_with("🕸️  Max Crawl") {
-            if let Some(d) = prompt_i32("Enter max depth > ") {
-                crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_max_depth = d as usize;
-            }
-        } else if selected.starts_with("🎯  Max Target") {
-            if let Some(t) = prompt_i32("Enter max targets cap (0 for unlimited) > ") {
-                crate::config::APP_SETTINGS.get().unwrap().write().unwrap().crawler_max_targets = t as usize;
-            }
-        } else if selected.starts_with("💾  Save/Resume") {
-            let selected_val = mm.selection_value("💾  Save/Resume State     "); // اصلاح شد: استفاده از selection_value
-            let mut settings = crate::config::APP_SETTINGS.get().unwrap().write().unwrap();
-            settings.crawler_save_state = selected_val == "Enabled";
-        }
-    }
-}*/
-
 // منوی اصلی تنظیمات برای هدایت به بخش‌های مختلف
 async fn run_settings_menu(engine: &mut RequestEngine) {
     loop {
         let settings_menu = menu(vec![
-            label("⚙️  SSRFdevil Core Settings"),
+            label("🔧  SSRFdevil Core Settings"),
             label("========================================="),
             button("👤 [1] User-Agent & Custom Headers Menu"),
             button("🚀 [2] Request Engine Settings (Threads/Delays)"),
-            button("🕸️ [3] Advanced Crawler & Proxy Settings"),
+            button("🦎 [3] Advanced Crawler & Proxy Settings"),
             label("========================================="),
             back_button("⬅️  [Back]")
         ]);
@@ -373,7 +295,7 @@ async fn run_settings_menu(engine: &mut RequestEngine) {
         match mm.selected_item_name() {
             "👤 [1] User-Agent & Custom Headers Menu" => run_ua_headers_menu(),
             "🚀 [2] Request Engine Settings (Threads/Delays)" => run_request_engine_menu(engine),
-            "🕸️ [3] Advanced Crawler & Proxy Settings" => run_crawler_advanced_menu(engine).await,
+            "🦎 [3] Advanced Crawler & Proxy Settings" => run_crawler_advanced_menu(engine).await,
             _ => break,
         }
     }

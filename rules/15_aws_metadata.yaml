@@ -1,20 +1,25 @@
+# 15. aws_metadata.yaml
 meta:
   id: aws_metadata
-  version: 1
+  version: 2
   name: "AWS Metadata Endpoint"
   description: "Access AWS EC2 metadata service"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 100
   confidence: 95
   severity: critical
   tags: [aws, metadata, cloud, ssrf]
   references: []
+
 match:
-  schemes: [http]
-  requires: [hostname]
-  supports: [cloud]
+  schemes: [http, https]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

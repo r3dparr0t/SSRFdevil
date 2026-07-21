@@ -1,20 +1,25 @@
+# 25. file_etc_passwd.yaml
 meta:
   id: file_etc_passwd
-  version: 1
+  version: 2
   name: "File Protocol /etc/passwd"
   description: "Reads /etc/passwd using file://"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 90
   confidence: 80
   severity: critical
   tags: [file, local, read]
   references: []
+
 match:
   schemes: [http, https, file]
-  requires: [hostname]
-  supports: [file]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

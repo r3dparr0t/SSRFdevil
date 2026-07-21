@@ -169,7 +169,7 @@ async fn probe_proxy_only(url: String) -> Option<String> {
     let addr = url.clone();
     
     // تلاش برای اتصال به سوکت پروکسی
-    match timeout(Duration::from_millis(1500), TcpStream::connect(&addr)).await {
+    match timeout(Duration::from_millis(2000), TcpStream::connect(&addr)).await {
         Ok(Ok(_)) => Some(url), // زنده است!
         _ => None,              // مرده است یا تایم‌اوت خورد
     }

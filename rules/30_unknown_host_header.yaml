@@ -1,20 +1,25 @@
+# 30. unknown_host_header.yaml
 meta:
   id: unknown_host_header
-  version: 1
+  version: 2
   name: "Unknown Host Header Attack"
   description: "Sends request with Host header pointing to internal IP"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 85
   confidence: 80
   severity: high
   tags: [host_header, internal, bypass]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [http]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

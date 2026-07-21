@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::crawler::crawler_config::TargetKind;
 
 // زیرمجموعه برای بخش تطبیق پروتکل‌ها
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -9,6 +10,12 @@ pub struct MatchConfig {
     pub requires: Vec<String>,
     #[serde(default)]
     pub supports: Vec<String>,
+    #[serde(default)]
+    pub kinds: Vec<TargetKind>,
+    #[serde(default)]
+    pub required_tags: Vec<String>,
+    #[serde(default)]
+    pub require_params: bool,
 }
 
 // زیرمجموعه برای بخش اسکریپت داینامیک

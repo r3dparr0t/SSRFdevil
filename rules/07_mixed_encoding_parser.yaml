@@ -1,20 +1,25 @@
+# 7. mixed_encoding_parser.yaml
 meta:
   id: mixed_encoding_parser
-  version: 1
+  version: 2
   name: "Mixed Encoding with Parser Differential"
   description: "Combines Octal/Hex and uses the @ character to fool WAF parsers"
   author: "SSRFdevil"
   created: "2026-06-20"
-  updated: "2026-06-20"
+  updated: "2026-07-21"
   rank: 95
   confidence: 90
   severity: high
   tags: [encoding, octal, hex, parser, bypass]
   references: []
+
 match:
   schemes: [http, https]
-  requires: [hostname]
-  supports: [ipv4]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

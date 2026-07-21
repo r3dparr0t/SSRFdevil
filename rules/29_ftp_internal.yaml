@@ -1,20 +1,25 @@
+# 29. ftp_internal.yaml
 meta:
   id: ftp_internal
-  version: 1
+  version: 2
   name: "FTP Protocol Internal"
   description: "Uses ftp:// to access internal FTP"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 55
   confidence: 60
   severity: medium
   tags: [ftp, internal]
   references: []
+
 match:
   schemes: [http, https, ftp]
-  requires: [hostname]
-  supports: [ftp]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass

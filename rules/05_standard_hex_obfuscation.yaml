@@ -1,39 +1,30 @@
+# 5. standard_hex_obfuscation.yaml
 meta:
   id: standard_hex_obfuscation
-  version: 1
+  version: 2
   name: "Standard Hex Obfuscation"
   description: "Converts standard IPv4 to full Hexadecimal format (0x7f.0x0.0x0.0x1)"
   author: "SSRFdevil"
   created: "2026-06-18"
-  updated: "2026-06-18"
+  updated: "2026-07-21"
   rank: 85
   confidence: 95
   severity: high
-  tags:
-    - hex
-    - obfuscation
-    - ipv4
-    - encoding
-    - localhost
-    - bypass
+  tags: [hex, obfuscation, ipv4, encoding, localhost, bypass]
   references:
     - "https://book.hacktricks.xyz/pentesting-web/ssrf#bypass-using-ipv4-encoding"
 
 match:
-  schemes:
-    - http
-    - https
-  requires:
-    - hostname
-  supports:
-    - ipv4
+  schemes: [http, https]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
 
 script:
   language: lua
   entry: bypass
   source: |
     function bypass(ctx)
-      return {
-        url = "http://0x7f.0x0.0x0.0x1"
-      }
+      return { url = "http://0x7f.0x0.0x0.0x1" }
     end

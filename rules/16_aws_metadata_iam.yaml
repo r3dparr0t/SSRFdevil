@@ -1,20 +1,25 @@
+# 16. aws_metadata_iam.yaml
 meta:
   id: aws_metadata_iam
-  version: 1
+  version: 2
   name: "AWS IAM Credentials"
   description: "Retrieve AWS IAM role credentials"
   author: "SSRFdevil"
   created: "2026-06-19"
-  updated: "2026-06-19"
+  updated: "2026-07-21"
   rank: 100
   confidence: 90
   severity: critical
   tags: [aws, iam, credentials, cloud]
   references: []
+
 match:
-  schemes: [http]
-  requires: [hostname]
-  supports: [cloud]
+  schemes: [http, https]
+  kinds: [Endpoint]
+  allowed_methods: [GET, POST]
+  required_tags: [Redirect, Callback, Webhook]
+  require_params: true
+
 script:
   language: lua
   entry: bypass
