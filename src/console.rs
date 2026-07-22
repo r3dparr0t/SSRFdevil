@@ -363,8 +363,9 @@ pub async fn run_interactive_console(
                     println!("[!] No rule(s) selected. Use 'use <id|idx|tag|all>' first.");
                     continue;
                 }
-
-                if crawler.targets().await.is_empty() {
+            
+                let crawled_targets = crawler.targets().await;
+                if crawled_targets.is_empty() {
                     println!("[*] Meh, seems like you forgot I can crawl too...\n[*] Give me a sec.");
                     crawler.run().await;
                     
@@ -373,44 +374,29 @@ pub async fn run_interactive_console(
                         continue;
                     }
                 }
-                println!("[+] Got {} target(s). Now we're talking.", crawler.targets().await.len());
-                                                                                           
-                let mut aborted = false;
-                for (idx, rule) in selected_rules.iter().enumerate() {
-                    println!("\n🚀 [{}/{}] Running: {} ({})", idx + 1, selected_rules.len(), rule.meta.name, rule.meta.id);
-                    
-                    let script_source = rule.script.source.clone();
-                    let entry_point = rule.script.entry.clone();
-                    let t_url = target_url.to_string();
-
-                    let res = tokio::task::spawn_blocking(move || {
-                        executor::execute_lua_bypass(&script_source, &entry_point, &t_url)
-                            .map_err(|e| e.to_string())
-                    }).await;
-
-                    match res {
-                        Ok(Ok(payload)) => {
-                            println!("    [+] Generated URL: {}", payload.url);
-                            match executor::run_payload(engine, payload).await {
-                                Ok(resp) => println!("    [+] Response: {} ({} bytes)", resp.status, resp.body.len()),
-                                Err(e) => println!("    ❌ Request Error: {}", e),
-                            }
-                        }
-                        Ok(Err(lua_err)) => println!("    ❌ Lua Error: {}", lua_err),
-                        Err(join_err) => println!("    ❌ Task Execution Panic: {}", join_err),
+            
+                let targets = crawler.targets().await;
+                println!("[+] Got {} target(s). Matching selected rules with targets...", targets.len());
+                
+                // 🔥 کلون کردن برای انتقال مالکیت به closure
+                let rules_for_task = selected_rules.clone();
+            
+                let payloads = match tokio::task::spawn_blocking(move || {
+                    executor::process_all_batches_single_pass(&targets, &rules_for_task)
+                }).await {
+                    Ok(Ok(p)) => p,
+                    Ok(Err(e)) => {
+                        println!("[!] Executor error: {}", e);
+                        Vec::new()
                     }
-
-                    if selected_rules.len() > 1 && idx < selected_rules.len() - 1 {
-                        let next = prompt("\nssrfdevil [batch-pause] > Press Enter for next rule, or type 'q' to abort: " );
-                        if next == "q" {
-                            aborted = true;
-                            break;
-                        }
+                    Err(e) => {
+                        println!("[!] Task panic: {}", e);
+                        Vec::new()
                     }
-                }
-                if !aborted { println!("\n[+] Batch scan execution completed."); }
+                };
+                
+                println!("[+] Batch processing done in ONE pass. Generated {} payloads.", payloads.len());
             }
-
             "info" | "show" => {
                 if arg.is_empty() {
                     if selected_rules.is_empty() { println!("[!] No rule active."); }

@@ -1,11 +1,12 @@
 use chrono::Local;
 use serde_yaml;
-use std::fs;
-use std::io::{self, Write};
-use std::path::Path;
+use std::{fs, io::{self, Write}, path::Path};
 
-use ssrfdevil::rule::{MatchConfig, RuleFile, RuleMeta, ScriptConfig};
-use ssrfdevil::paths;
+// 🔥 برای دسترسی به لایبرری اصلی پروژه از اسم crate یعنی ssrfdevil استفاده می‌کنیم:
+use ssrfdevil::{
+    engine::rule::{MatchConfig, RuleFile, RuleMeta, ScriptConfig},
+    paths,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛠️  SSRFdevil Rule Generator");
@@ -86,20 +87,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             references: vec![],
         },
         r#match: MatchConfig {
+            kinds: vec![],
             schemes: vec!["http".to_string(), "https".to_string()],
-            requires: vec!["hostname".to_string()],
-            supports: vec!["ipv4".to_string()],
+            required_tags: vec![],
+            require_params: false,
+            requires: vec![],
+            supports: vec![],
         },
-        script: ScriptConfig {
+            script: ScriptConfig {
             language: "lua".to_string(),
-            entry: "bypass".to_string(),
+            entry: "run_master_batch".to_string(),
             source,
         },
     };
 
     // ۶. شماره‌گذاری فایل (پیدا کردن آخرین شماره)
     fs::create_dir_all(paths::RULES_DIR)?;
-    let max_num = fs::read_dir(rules_dir)?
+    let max_num = fs::read_dir(paths::RULES_DIR)?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().is_file())
         .filter_map(|e| {
@@ -113,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let next_num = max_num + 1;
     let filename = format!("{:02}_{}.yaml", next_num, id);
-    let filepath = Path::new(rules_dir).join(&filename);
+    let filepath = Path::new(paths::RULES_DIR).join(&filename);
 
     // ۷. ذخیره به YAML
     let yaml_str = serde_yaml::to_string(&rule)?;
@@ -122,7 +126,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n✅ Rule created successfully!");
     println!("📁 File: {}", filepath.display());
     println!("🔢 Rule ID: {}", id);
-    println!("💡 Next: Run `cargo run -- <target>` to test it!");
 
     Ok(())
 }

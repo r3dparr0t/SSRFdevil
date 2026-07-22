@@ -14,7 +14,7 @@ pub fn create_batches<'a>(targets: &'a [Target], rules: &'a [RuleFile]) -> Vec<B
     for rule in rules {
         let matched_targets: Vec<&Target> = targets
             .iter()
-            .filter(|t| is_match(t, &rule.r#match))
+            .filter(|t| is_match(t, &rule.r#match)) // اصلاح نام فیلد
             .collect();
 
         if !matched_targets.is_empty() {
@@ -29,11 +29,12 @@ pub fn create_batches<'a>(targets: &'a [Target], rules: &'a [RuleFile]) -> Vec<B
 }
 
 fn is_match(target: &Target, matcher: &MatchConfig) -> bool {
-    // ۱. بررسی TargetKind
+    // ۱. بررسی TargetKind (مثلا نادیده گرفتن Resource ها)
     if target.kind == TargetKind::Resource {
         return false;
     }
 
+    // اگر kinds مشخص شده بود و target شاملش نبود
     if !matcher.kinds.is_empty() && !matcher.kinds.contains(&target.kind) {
         return false;
     }
@@ -46,25 +47,30 @@ fn is_match(target: &Target, matcher: &MatchConfig) -> bool {
         }
     }
 
-    // ۳. بررسی Tags (مقایسه تگ‌های TargetTag با required_tags موجود در YAML)
+    // ۳. بررسی Tags (اگر رول نیاز به تگ‌های خاصی داشت)
+    /* if !matcher.required_tags.is_empty() {
+        let has_matching_tag = matcher
+            .required_tags
+            .iter()
+            .any(|tag| target.meta.tags.contains(tag));
+            
+        if !has_matching_tag {
+            return false;
+        }
+    }*/
     if !matcher.required_tags.is_empty() {
         let has_matching_tag = matcher.required_tags.iter().any(|req_tag| {
-            target
-                .meta
-                .tags
-                .iter()
-                .any(|target_tag| target_tag.as_str().eq_ignore_ascii_case(req_tag))
+            target.meta.tags.iter().any(|t| t.as_str().eq_ignore_ascii_case(req_tag))
         });
-
+            
         if !has_matching_tag {
             return false;
         }
     }
 
-    // ۴. بررسی وجود پارامتر
+    // ۴. بررسی وجود پارامتر در صورت نیاز رول
     if matcher.require_params && target.params.is_empty() {
         return false;
     }
-
     true
 }
