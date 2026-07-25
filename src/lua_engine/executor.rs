@@ -1,8 +1,10 @@
 use mlua::{Lua, Table};
 use url::Url;
 use std::{
- 	collections::HashMap,
- 	error::Error
+    collections::HashMap,
+    error::Error,
+    fs::OpenOptions,
+    io::Write,
 };
 use reqwest::{Method, header::{HeaderMap, HeaderName, HeaderValue}};
 use crate::{
@@ -13,8 +15,9 @@ use crate::{
         response::ResponseData,
     },
     crawler::crawler_config::Target,
-    lua_engine::matcher};
-    
+    lua_engine::matcher
+};
+
 #[derive(Debug, Clone)]
 pub struct LuaPayload {
     pub url: String,
@@ -24,10 +27,9 @@ pub struct LuaPayload {
     pub action: String,
 }
 
-// ---------------------------------------------------
-// executing lua code part
-// ---------------------------------------------------
-
+// -----------------------------------------------
+// Executing HTTP Payload Part          
+// -----------------------------------------------
 
 pub async fn run_payload(
     engine: &RequestEngine,
@@ -51,68 +53,10 @@ pub async fn run_payload(
     Ok(engine.send(req).await?)
 }
 
-/* pub fn execute_lua_bypass_batch(
-    script_source: &str,
-    entry_fn: &str,
-    targets: &[&Target],
-) -> Result<Vec<LuaPayload>, Box<dyn Error>> {
-    let lua = Lua::new();
-
-    // ۱. ساخت آرایه‌ای از تارگت‌ها برای پاس دادن به لوا
-    let targets_table = lua.create_table()?;
-    for (i, target) in targets.iter().enumerate() {
-        let t_table = lua.create_table()?;
-        t_table.set("url", target.url.as_str())?;
-        t_table.set("method", target.method.as_str())?;
-        
-        // اضافه کردن پارامترهای تارگت به Table
-        let params_table = lua.create_table()?;
-        for (j, param) in target.params.iter().enumerate() {
-            let p_table = lua.create_table()?;
-            p_table.set("name", param.name.as_str())?;
-            p_table.set("value", param.value.as_deref().unwrap_or(""))?;
-            p_table.set("location", format!("{:?}", param.location))?; // Query, Form, Header...
-            params_table.set(j + 1, p_table)?;
-        }
-        t_table.set("params", params_table)?;
-        
-        // اضافه کردن سایر متادیتای لازم...
-        targets_table.set(i + 1, t_table)?; // در لوا نمایه از ۱ شروع می‌شود
-    }
-
-    let ctx = lua.create_table()?;
-    ctx.set("targets", targets_table)?;
-    //ctx.set("user_agent", ua_engine::next())?;
-
-    // ۲. لود و اجرای یک‌باره اسکریپت
-    lua.load(script_source).exec()?;
-    let func: mlua::Function = lua.globals().get(entry_fn)?;
-    
-    // ۳. دریافت خروجی به صورت یک Table از Payloadها
-    let results_table: Table = func.call(ctx)?;
-    let mut payloads = Vec::new();
-
-    for pair in results_table.sequence_values::<Table>() {
-        let res = pair?;
-        let payload = LuaPayload {
-            url: res.get::<_, String>("url")?,
-            method: res.get::<_, Option<String>>("method")?.unwrap_or_else(|| "GET".to_string()),
-            headers: HashMap::new(), // استخراج هدرها از table
-            body: res.get::<_, Option<String>>("body")?,
-            action: res.get::<_, Option<String>>("action")?.unwrap_or_else(|| "execute".to_string()),
-        };
-        payloads.push(payload);
-    }
-
-    Ok(payloads)
-}
-*/
-
 pub fn process_all_batches_single_pass(
     targets: &[Target],
     rules: &[RuleFile],
 ) -> Result<Vec<LuaPayload>, Box<dyn Error + Send + Sync>> {
-    // ۱. استخراج دسته‌ها از Matcher
     let batches = matcher::create_batches(targets, rules);
     
     if batches.is_empty() {
@@ -120,7 +64,7 @@ pub fn process_all_batches_single_pass(
         return Ok(Vec::new());
     }
     println!("[+] Created {} matched batch task(s). Executing...", batches.len());
-    // ۲. اجرای واقعی لوا: فقط و فقط ۱ بار فراخوانی برای کل مجموعه
+    
     execute_lua_master_batch(&batches)
 }
 
@@ -128,60 +72,95 @@ fn execute_lua_master_batch(
     batches: &[matcher::BatchTask],
 ) -> Result<Vec<LuaPayload>, Box<dyn Error + Send + Sync>> {
     let lua = Lua::new();
-    let master_table = lua.create_table()?;
+    let mut all_payloads = Vec::new(); // ۱. تعریف لیست کل پی‌لودها
 
-    // تبدیل تمام BatchTaskها به یک Table واحد در لوا
-    for (i, task) in batches.iter().enumerate() {
-        let batch_item = lua.create_table()?;
-        batch_item.set("rule_id", task.rule.meta.id.as_str())?;
-        println!("\n🚀 Executing Rule: {} ({}) over {} matched target(s)", task.rule.meta.name, task.rule.meta.id, task.targets.len());
-                        
+    for task in batches {
+        println!("\n🚀 Executing Rule: {} ({}) over {} matched target(s)", 
+                 task.rule.meta.name, task.rule.meta.id, task.targets.len());
+
+        // ۲. ساخت Table مربوط به Targetهای این Batch برای پاس دادن به لوا
         let targets_table = lua.create_table()?;
         for (i, target) in task.targets.iter().enumerate() {
             let t_table = lua.create_table()?;
             t_table.set("url", target.url.as_str())?;
             t_table.set("method", target.method.as_str())?;
-            // اضافه کردن پارامترهای تارگت به Table
+            
             let params_table = lua.create_table()?;
             for (j, param) in target.params.iter().enumerate() {
                 let p_table = lua.create_table()?;
                 p_table.set("name", param.name.as_str())?;
                 p_table.set("value", param.value.as_deref().unwrap_or(""))?;
-                p_table.set("location", format!("{:?}", param.location))?; // Query, Form, Header...
+                p_table.set("location", format!("{:?}", param.location))?;
                 params_table.set(j + 1, p_table)?;
             }
             t_table.set("params", params_table)?;
-        
-            // اضافه کردن سایر متادیتای لازم...
-            targets_table.set(i + 1, t_table)?; // در لوا نمایه از ۱ شروع می‌}
+            targets_table.set(i + 1, t_table)?;
         }
-        
-        batch_item.set("targets", targets_table)?;
-        master_table.set(i + 1, batch_item)?;
+
+        // ۳. بارگذاری و اجرای اسکریپت لوا مربوط به این رول
+        lua.load(&task.rule.script.source).exec()?;
+            
+        // ۴. استخراج تابع entry (پیش‌فرض run_batch)
+        let entry_fn = if task.rule.script.entry.is_empty() { 
+            "run_batch" 
+        } else { 
+            &task.rule.script.entry 
+        };
+        let func: mlua::Function = lua.globals().get(entry_fn)?;
+
+        // ۵. اجرای واقعی تابع لوا با پاس دادن targets_table
+        let results_table: Table = func.call(targets_table)?;
+
+        // ۶. پیمایش روی نتایج خروجی لوا
+        for pair in results_table.sequence_values::<Table>() {
+            let res = pair?;
+            
+            // استخراج هدرها از Lua Table به HashMap
+            let mut headers_map = HashMap::new();
+            if let Ok(headers_table) = res.get::<_, Table>("headers") {
+                for h_pair in headers_table.pairs::<String, String>() {
+                    if let Ok((k, v)) = h_pair {
+                        headers_map.insert(k, v);
+                    }
+                }
+            }
+            
+            let payload = LuaPayload {
+                url: res.get("url")?,
+                method: res.get::<_, Option<String>>("method")?.unwrap_or_else(|| "GET".to_string()),
+                headers: headers_map,
+                body: res.get::<_, Option<String>>("body")?,
+                action: res.get::<_, Option<String>>("action")?.unwrap_or_else(|| "scan".to_string()),
+            };
+
+            // 📝 ذخیره پی‌لودهای تولیدشده داخل فایل data/logs/payload.log
+            log_payload_to_file(&payload, &task.rule.meta.id);
+
+            all_payloads.push(payload);
+        }
     }
 
-    let ctx = lua.create_table()?;
-    ctx.set("batches", master_table)?;
-    // ctx.set("user_agent", ua_engine::next())?;
+    println!("\n    [+] Generated total {} payload(s) from Lua.", all_payloads.len());
+    Ok(all_payloads)
+}
 
-    // 🔥 اجرا فقط ۱ بار در کل این فرایند:
-    // فرض بر این است که یک master runner کد لوا را لود می‌کند
-    let func: mlua::Function = lua.globals().get("run_master_batch")?;
-    let results_table: Table = func.call(ctx)?;
-
-    let mut payloads = Vec::new();
-    for pair in results_table.sequence_values::<Table>() {
-        let res = pair?;
-        payloads.push(LuaPayload {
-            url: res.get("url")?,
-            method: res.get::<_, Option<String>>("method")?.unwrap_or_else(|| "GET".to_string()),
-            headers: HashMap::new(),
-            body: res.get("body")?,
-            action: res.get::<_, Option<String>>("action")?.unwrap_or_else(|| "execute".to_string()),
-        });
+fn log_payload_to_file(payload: &LuaPayload, rule_id: &str) {
+    std::fs::create_dir_all(crate::paths::CRAWL_LOG_DIR).ok();
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(crate::paths::PAYLOAD_LOG) 
+    {
+        let _ = writeln!(
+            file,
+            "[{}] RULE: {} | METHOD: {} | URL: {} | HEADERS: {:?}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+            rule_id,
+            payload.method,
+            payload.url,
+            payload.headers
+        );
     }
-    println!("    [+] Generated {} payload(s) from Lua.", payloads.len());
-    Ok(payloads)
 }
 
 /*                        

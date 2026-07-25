@@ -6,3 +6,5 @@ pub const RULES_DB: &str = "data/db/rules_db";
 pub const TARGETS_DB: &str = "data/db/targets_db";
 pub const CRAWL_LOG: &str = "data/logs/crawl.log";
 pub const CRAWL_LOG_DIR: &str = "data/logs";
+
+pub const PAYLOAD_LOG: &str = "data/logs/payload.log"; // <--- لاگ اختصاصی پیلود

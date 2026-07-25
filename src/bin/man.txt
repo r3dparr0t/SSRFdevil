@@ -1,0 +1,1 @@
+cargo run --bin test_rule -- rules/08_decimal_ip.yaml
