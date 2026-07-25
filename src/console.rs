@@ -379,21 +379,15 @@ pub async fn run_interactive_console(
                 println!("[+] Got {} target(s). Matching selected rules with targets...", targets.len());
                 
                 // 🔥 کلون کردن برای انتقال مالکیت به closure
-                let rules_for_task = selected_rules.clone();
+                let rules = selected_rules.clone();
             
-                let payloads = match tokio::task::spawn_blocking(move || {
-                    executor::process_all_batches_single_pass(&targets, &rules_for_task)
-                }).await {
-                    Ok(Ok(p)) => p,
-                    Ok(Err(e)) => {
-                        println!("[!] Executor error: {}", e);
-                        Vec::new()
-                    }
-                    Err(e) => {
-                        println!("[!] Task panic: {}", e);
-                        Vec::new()
-                    }
-                };
+                let payloads = match tokio::task::spawn_blocking(move || { executor::process_all_batches_single_pass(&targets, &rules)}).await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            eprintln!("❌ Task join error: {}", e);
+                            Vec::new()
+                        }
+                    };
                 
                 println!("[+] Batch processing done in ONE pass. Generated {} payloads.", payloads.len());
             }
