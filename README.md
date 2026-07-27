@@ -24,12 +24,12 @@ Core framework is operational.
 ✅ High-speed Web Crawler
 ✅ Resource Classification
 ✅ URL Parameter Extraction
+✅ Crawl Configuration
+✅ Lua Runtime
 
 # In Progress:
 🚧 Scanner Engine
 🚧 False Positive Reduction
-🚧 Lua Runtime
-🚧 Crawl Configuration
 
 ---
 
