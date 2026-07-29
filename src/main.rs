@@ -6,6 +6,7 @@ use std::{
 };
 use url::Url;
 use ssrfdevil::{
+    scanner::scanner::{Scanner, ScannerConfig},
 	crawler::crawler::{Crawler,CrawlerConfig},
 	console,
 	paths,
@@ -115,9 +116,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_concurrent_requests: 10,          // تعداد هم‌زمانی
         allowed_domains: vec![],             // فقط دامنهٔ seed
     };
-
+    let scanner = Arc::new(Scanner::new(engine.clone(), ScannerConfig::default()));
     let crawler = Arc::new(Crawler::new(engine.clone(), crawler_config));
-    console::run_interactive_console(&db, target_url.as_str(), crawler, &mut engine).await;
+    console::run_interactive_console(&db, target_url.as_str(), scanner, crawler, &mut engine).await;
     
 	Ok(())
 }

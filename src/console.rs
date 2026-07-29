@@ -7,7 +7,7 @@ use std::{
 
 use sled::Db;
 use crate::{
-    lua_engine::executor,
+    scanner::scanner::Scanner,
     engine::{
         rule::RuleFile,
         ua_engine,
@@ -304,6 +304,7 @@ async fn run_settings_menu(engine: &mut RequestEngine) {
 pub async fn run_interactive_console(
     db: &Db,
     target_url: &str,
+    scanner: Arc<Scanner>,
     crawler: Arc<Crawler>,
     engine: &mut RequestEngine,
 ) {
@@ -380,16 +381,7 @@ pub async fn run_interactive_console(
                 
                 // 🔥 کلون کردن برای انتقال مالکیت به closure
                 let rules = selected_rules.clone();
-            
-                let payloads = match tokio::task::spawn_blocking(move || { executor::process_all_batches_single_pass(&targets, &rules)}).await {
-                        Ok(p) => p,
-                        Err(e) => {
-                            eprintln!("❌ Task join error: {}", e);
-                            Vec::new()
-                        }
-                    };
-                
-                println!("[+] Batch processing done in ONE pass. Generated {} payloads.", payloads.len());
+                let _results = scanner.run_full_scan(targets, rules).await;
             }
             "info" | "show" => {
                 if arg.is_empty() {

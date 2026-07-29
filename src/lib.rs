@@ -1,6 +1,7 @@
 pub mod crawler;
 pub mod engine;
 pub mod lua_engine;
+pub mod scanner;
 pub mod paths;
 pub mod console;
 pub mod config;

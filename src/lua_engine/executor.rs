@@ -1,5 +1,4 @@
 use mlua::{Lua, Table, HookTriggers}; 
-use url::Url;
 use std::{
     collections::HashMap,
     error::Error,
@@ -7,14 +6,8 @@ use std::{
     io::Write,
     time::{Duration, Instant},
 };
-use reqwest::{Method, header::{HeaderMap, HeaderName, HeaderValue}};
 use crate::{
-    engine::{
-        rule::RuleFile,
-        request_engine::RequestEngine,
-        request::RequestData,
-        response::ResponseData,
-    },
+    engine::rule::RuleFile,
     crawler::crawler_config::Target,
     lua_engine::matcher
 };
@@ -26,37 +19,12 @@ pub struct LuaPayload {
     pub headers: HashMap<String, String>,
     pub body: Option<String>,
     pub action: String,
+    pub rule_id: String,
 }
 
 // حداکثر زمانی که یک رول اجازه دارد داخل لوا اجرا شود. اگر رد شود، اجرا با خطا قطع می‌شود
 // نه کل برنامه؛ فقط همین رول skip می‌شود. جلوی حلقه‌ی بی‌پایان یک اسکریپت خراب/مخرب را می‌گیرد.
 const LUA_RULE_TIMEOUT: Duration = Duration::from_secs(5);
-
-// -----------------------------------------------
-// Executing HTTP Payload Part
-// -----------------------------------------------
-
-pub async fn run_payload(
-    engine: &RequestEngine,
-    payload: LuaPayload,
-) -> Result<ResponseData, Box<dyn Error + Send + Sync>> {
-    let url = Url::parse(&payload.url)?;
-    let method = Method::from_bytes(payload.method.as_bytes())?;
-
-    let mut headers = HeaderMap::new();
-    for (k, v) in &payload.headers {
-        if let (Ok(name), Ok(value)) = (
-            HeaderName::from_bytes(k.as_bytes()),
-            HeaderValue::from_str(v),
-        ) {
-            headers.insert(name, value);
-        }
-    }
-
-    let body = payload.body.map(|b| b.into_bytes());
-    let req = RequestData { method, url, headers, body };
-    Ok(engine.send(req).await?)
-}
 
 /// نکته: این تابع دیگر Result برنمی‌گرداند. شکست یک رول = رد شدن از همان رول، نه سقوط کل pass.
 /// هر خطا (سینتکس لوا، entry function غایب، فیلد ناقص در نتیجه) داخل هر رول لاگ و skip می‌شود.
@@ -86,7 +54,7 @@ fn execute_lua_master_batch(batches: &[matcher::BatchTask]) -> Vec<LuaPayload> {
         match run_single_rule(task) {
             Ok(payloads) => {
                 for payload in &payloads {
-                    log_payload_to_file(payload, &task.rule.meta.id);
+                    log_payload_to_file(payload);
                 }
                 println!("    [+] Rule '{}' produced {} payload(s).", task.rule.meta.id, payloads.len());
                 all_payloads.extend(payloads);
@@ -278,14 +246,17 @@ fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn
         let action = res.get::<_, Option<String>>("action")
             .ok().flatten().unwrap_or_else(|| "scan".to_string());
 
-        payloads.push(LuaPayload { url, method, headers: headers_map, body, action });
+        payloads.push(LuaPayload {
+            url, method, headers: headers_map, body, action,
+            rule_id: task.rule.meta.id.clone(),
+        });
     }
 
     Ok(payloads)
 }
 
 
-fn log_payload_to_file(payload: &LuaPayload, rule_id: &str) {
+fn log_payload_to_file(payload: &LuaPayload) {
     std::fs::create_dir_all(crate::paths::CRAWL_LOG_DIR).ok();
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
@@ -296,7 +267,7 @@ fn log_payload_to_file(payload: &LuaPayload, rule_id: &str) {
             file,
             "[{}] RULE: {} | METHOD: {} | URL: {} | HEADERS: {:?}",
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            rule_id,
+            payload.rule_id,
             payload.method,
             payload.url,
             payload.headers
