@@ -38,7 +38,7 @@ impl Default for EngineConfig {
             cookies: false,
             proxy: false,
             http2: false,
-            verify_tls: false,
+            verify_tls: true,
         }
     }
 }

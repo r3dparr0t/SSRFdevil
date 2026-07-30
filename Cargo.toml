@@ -16,7 +16,8 @@ tokio = { version = "1", features = ["full"] }
 rand = "0.9.0"
 #rand = { version = "0.10.1", features = ["std"] }
 regex = "1.13.0"
-reqwest = { version = "0.12", features = ["json", "cookies", "gzip", "brotli", "deflate", "rustls-tls"] }
+#reqwest = { version = "0.12", features = ["json", "cookies", "gzip", "brotli", "deflate", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "cookies", "gzip", "brotli", "deflate", "rustls-tls"] }
 #lonkero = "3.6.6" 
 #attackstr = "0.2.0"
 #wafrift-oracle = "0.2.15"
