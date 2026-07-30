@@ -7,7 +7,7 @@ use std::{
 
 use sled::Db;
 use crate::{
-    scanner::scanner::Scanner,
+    scanner::{verdict,scanner::Scanner},
     engine::{
         rule::RuleFile,
         ua_engine,
@@ -381,7 +381,8 @@ pub async fn run_interactive_console(
                 
                 // 🔥 کلون کردن برای انتقال مالکیت به closure
                 let rules = selected_rules.clone();
-                let _results = scanner.run_full_scan(targets, rules).await;
+                let results = scanner.run_full_scan(targets, rules).await;
+                verdict::print_report(&results);
             }
             "info" | "show" => {
                 if arg.is_empty() {

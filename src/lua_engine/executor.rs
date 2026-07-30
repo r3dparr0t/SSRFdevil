@@ -20,6 +20,8 @@ pub struct LuaPayload {
     pub body: Option<String>,
     pub action: String,
     pub rule_id: String,
+    pub severity: String,
+    pub confidence: u32,
 }
 
 // حداکثر زمانی که یک رول اجازه دارد داخل لوا اجرا شود. اگر رد شود، اجرا با خطا قطع می‌شود
@@ -77,94 +79,6 @@ fn execute_lua_master_batch(batches: &[matcher::BatchTask]) -> Vec<LuaPayload> {
 /// یک رول را در یک VM لوای *تازه و ایزوله* اجرا می‌کند.
 /// دلیل ساخت Lua::new() برای هر رول (به‌جای یک VM مشترک برای کل pass):
 /// globals/functionهای یک اسکریپت نباید در اسکریپت رول بعدی نشت کنند.
-/*fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn Error + Send + Sync>> {
-    let lua = Lua::new();
-
-    // محافظ زمانی: هر چند صد/هزار instruction، mlua این closure را صدا می‌زند.
-    // اگر از سقف زمانی رد شده باشیم، اجرای اسکریپت با خطا متوقف می‌شود (نه panic، نه هنگ ابدی).
-    let start = Instant::now();
-    lua.set_interrupt(move |_| {
-        if start.elapsed() > LUA_RULE_TIMEOUT {
-            Err(mlua::Error::RuntimeError(format!(
-                "rule execution exceeded {}s timeout (infinite loop / too heavy script?)",
-                LUA_RULE_TIMEOUT.as_secs()
-            )))
-        } else {
-            Ok(VmState::Continue)
-        }
-    });
-
-    let targets_table = lua.create_table()?;
-    for (i, target) in task.targets.iter().enumerate() {
-        let t_table = lua.create_table()?;
-        t_table.set("url", target.url.as_str())?;
-        t_table.set("method", target.method.as_str())?;
-
-        let params_table = lua.create_table()?;
-        for (j, param) in target.params.iter().enumerate() {
-            let p_table = lua.create_table()?;
-            p_table.set("name", param.name.as_str())?;
-            p_table.set("value", param.value.as_deref().unwrap_or(""))?;
-            p_table.set("location", format!("{:?}", param.location))?;
-            params_table.set(j + 1, p_table)?;
-        }
-        t_table.set("params", params_table)?;
-        targets_table.set(i + 1, t_table)?;
-    }
-
-    lua.load(&task.rule.script.source).exec()?;
-
-    let entry_fn = if task.rule.script.entry.is_empty() {
-        "run_batch"
-    } else {
-        &task.rule.script.entry
-    };
-    let func: mlua::Function = lua.globals().get(entry_fn)
-        .map_err(|e| format!("entry function '{}' not found: {}", entry_fn, e))?;
-
-    let results_table: Table = func.call(targets_table)?;
-
-    let mut payloads = Vec::new();
-    for pair in results_table.sequence_values::<Table>() {
-        // یک entry بد (مثلا نوع اشتباه) فقط همان entry را حذف می‌کند، نه کل رول را.
-        let res = match pair {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("    ⚠️  Skipping malformed Lua result row: {}", e);
-                continue;
-            }
-        };
-
-        let url: String = match res.get("url") {
-            Ok(u) => u,
-            Err(e) => {
-                eprintln!("    ⚠️  Skipping result with missing/invalid 'url': {}", e);
-                continue;
-            }
-        };
-
-        let mut headers_map = HashMap::new();
-        if let Ok(headers_table) = res.get::<_, Table>("headers") {
-            for h_pair in headers_table.pairs::<String, String>() {
-                if let Ok((k, v)) = h_pair {
-                    headers_map.insert(k, v);
-                }
-            }
-        }
-
-        // فیلدهای اختیاری: به‌جای propagate کردن خطا با `?`، در صورت خرابی مقدار پیش‌فرض می‌گیرند.
-        let method = res.get::<_, Option<String>>("method")
-            .ok().flatten().unwrap_or_else(|| "GET".to_string());
-        let body = res.get::<_, Option<String>>("body").ok().flatten();
-        let action = res.get::<_, Option<String>>("action")
-            .ok().flatten().unwrap_or_else(|| "scan".to_string());
-
-        payloads.push(LuaPayload { url, method, headers: headers_map, body, action });
-    }
-
-    Ok(payloads)
-}*/
-
 fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn Error + Send + Sync>> {
     let lua = Lua::new();
 
@@ -249,6 +163,8 @@ fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn
         payloads.push(LuaPayload {
             url, method, headers: headers_map, body, action,
             rule_id: task.rule.meta.id.clone(),
+            severity: task.rule.meta.severity.clone(),
+            confidence: task.rule.meta.confidence,
         });
     }
 
