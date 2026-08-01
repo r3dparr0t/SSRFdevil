@@ -4,14 +4,14 @@ Rule-Based SSRF Discovery & Exploitation Framework.
 SSRF scanner and attacker. And it's going to be fully automated soon!
 
 هنوز در حال توسعه هست...
-— فعلاً اینترنت را می‌خزد؛ بعد نوبت اسکن است. 😁
+— فعلاً اینترنت را می‌خزد؛ یک اسکنی هم میکند. 😁
 
 ** Powerful interactive console added
 
 SSRFdevil یه موتور هوشمند برای شناسایی و دور زدن آسیب‌پذیری‌های SSRF هست.
 این پروژه با Rust نوشته شده و از معماری Rule-Based با قابلیت اجرای اسکریپت‌های Lua برای تولید پیلودهای پویا استفاده می‌کنه.
 
-## 🚧 Current Status (Phase 1)
+## 🚧 Current Status (Phase 3)
 Core framework is operational.
 
 ## Implemented:
@@ -31,6 +31,7 @@ Core framework is operational.
 # In Progress:
 🚧 Authenticated Crawley
 🚧 False Positive Reduction
+🤖 Finalizing the tests
 
 ---
 
