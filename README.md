@@ -26,9 +26,10 @@ Core framework is operational.
 ✅ URL Parameter Extraction
 ✅ Crawl Configuration
 ✅ Lua Runtime
+✅ Scanner Engine
 
 # In Progress:
-🚧 Scanner Engine
+🚧 Authenticated Crawley
 🚧 False Positive Reduction
 
 ---
