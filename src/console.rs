@@ -377,7 +377,7 @@ pub async fn run_interactive_console(
                 }
             
                 let targets = crawler.targets().await;
-                println!("[+] Got {} target(s). Matching selected rules with targets...", targets.len());
+                //println!("[+] Got {} target(s). Matching selected rules with targets...", targets.len());
                 
                 // 🔥 کلون کردن برای انتقال مالکیت به closure
                 let rules = selected_rules.clone();

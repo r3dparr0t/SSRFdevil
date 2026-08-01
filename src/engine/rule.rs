@@ -18,6 +18,54 @@ pub struct MatchConfig {
     pub require_params: bool,
 }
 
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Info,
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+impl Severity {
+    pub const fn weight(self) -> u8 {
+        match self {
+            Self::Info => 0,
+            Self::Low => 1,
+            Self::Medium => 2,
+            Self::High => 3,
+            Self::Critical => 4,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Critical => "critical",
+        }
+    }
+}
+
+impl std::fmt::Display for Severity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 // زیرمجموعه برای بخش اسکریپت داینامیک
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScriptConfig {
@@ -37,8 +85,8 @@ pub struct RuleMeta {
     pub created: String,
     pub updated: String,
     pub rank: u32,
-    pub confidence: u32,
-    pub severity: String,
+    pub confidence: u8,
+    pub severity: Severity,
     pub tags: Vec<String>,
     pub references: Vec<String>,
 }
@@ -65,8 +113,7 @@ pub struct TraceStep {
     pub stage: String,     // match / script / transform
     pub message: String,
 }
-
-pub enum RoleCategory {
+pub enum RuleCategory {
     CloudMetadata, // تست‌های AWS, GCP, Azure
     InternalInfra,  // تست‌های کانتینرها، داکر، کوبرنتیز
     GenericWebhook, // تست‌های وب‌هوک و پورت‌های داخلی

@@ -2,11 +2,22 @@ use chrono::Local;
 use serde_yaml;
 use std::{fs, io::{self, Write}, path::Path};
 
-// 🔥 برای دسترسی به لایبرری اصلی پروژه از اسم crate یعنی ssrfdevil استفاده می‌کنیم:
 use ssrfdevil::{
-    engine::rule::{MatchConfig, RuleFile, RuleMeta, ScriptConfig},
+    engine::rule::{MatchConfig, RuleFile, RuleMeta, ScriptConfig, Severity},
     paths,
 };
+
+/// تبدیل رشته به Severity، در صورت نامعتبر بودن خطا برمی‌گرداند.
+fn parse_severity(s: &str) -> Result<Severity, String> {
+    match s.to_lowercase().as_str() {
+        "informational" | "info" => Ok(Severity::Info),
+        "low" => Ok(Severity::Low),
+        "medium" => Ok(Severity::Medium),
+        "high" => Ok(Severity::High),
+        "critical" => Ok(Severity::Critical),
+        _ => Err(format!("'{}' is not a valid severity", s)),
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛠️  SSRFdevil Rule Generator");
@@ -38,9 +49,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     print!("⚙️  Severity (informational/low/medium/high/critical): ");
     io::stdout().flush()?;
-    let mut severity = String::new();
-    io::stdin().read_line(&mut severity)?;
-    let severity = severity.trim().to_lowercase();
+    let mut severity_str = String::new();
+    io::stdin().read_line(&mut severity_str)?;
+    let severity_str = severity_str.trim().to_lowercase();
+
+    // تبدیل رشته به Severity با پیش‌فرض در صورت خطا
+    let severity = parse_severity(&severity_str).unwrap_or_else(|e| {
+        eprintln!("⚠️  {} – defaulting to 'medium'", e);
+        Severity::Medium
+    });
 
     print!("📈 Rank (higher is better, e.g., 60): ");
     io::stdout().flush()?;
@@ -82,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             updated: today.clone(),
             rank,
             confidence: 90,
-            severity,
+            severity, // اکنون از نوع Severity است
             tags,
             references: vec![],
         },
@@ -94,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             requires: vec![],
             supports: vec![],
         },
-            script: ScriptConfig {
+        script: ScriptConfig {
             language: "lua".to_string(),
             entry: "run_master_batch".to_string(),
             source,

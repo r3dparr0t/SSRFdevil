@@ -19,47 +19,166 @@ use crate::scanner::scanner::ScanResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
-    Ok,      // status تو رنج 2xx برگشت
-    Failed,  // request جواب داد ولی status غیرمنتظره بود (3xx/4xx/5xx)
-    Errored, // اصلاً request رد نشد (timeout, DNS, connection refused, payload نامعتبر, ...)
+    Confirmed,
+    Likely,
+    Suspicious,
+    Rejected,
+    Error,
 }
 
-pub fn classify(result: &ScanResult) -> Verdict {
-    if result.error.is_some() {
-        return Verdict::Errored;
+pub struct VerdictSummary {
+    pub confirmed: usize,
+    pub likely: usize,
+    pub suspicious: usize,
+    pub rejected: usize,
+    pub errors: usize,
+}
+
+pub struct VerdictResult {
+    pub verdict: Verdict,
+    pub score: u16,
+    pub reasons: Vec<Reason>,
+}
+#[derive(Debug, Clone)]
+pub enum Reason {
+    Http2xx,
+    Redirect,
+    ClientError,
+    ServerError,
+    Timeout,
+    Dns,
+    ConnectionRefused,
+}
+
+pub fn classify(scan: &ScanResult) -> VerdictResult {
+    let mut score: u16 = 0;
+    let mut reasons = Vec::new();
+
+    // ----------------------------
+    // Transport errors
+    // ----------------------------
+    if let Some(err) = &scan.error {
+        let err = err.to_ascii_lowercase();
+
+        if err.contains("timeout") {
+            reasons.push(Reason::Timeout);
+        } else if err.contains("dns") {
+            reasons.push(Reason::Dns);
+        } else if err.contains("refused") {
+            reasons.push(Reason::ConnectionRefused);
+        }
+
+        return VerdictResult {
+            verdict: Verdict::Error,
+            score: 0,
+            reasons,
+        };
     }
-    match &result.response {
-        Some(resp) if (200..300).contains(&resp.status) => Verdict::Ok,
-        Some(_) => Verdict::Failed,
-        None => Verdict::Errored,
+
+    // ----------------------------
+    // HTTP response
+    // ----------------------------
+    let response = match &scan.response {
+        Some(r) => r,
+        None => {
+            return VerdictResult {
+                verdict: Verdict::Error,
+                score: 0,
+                reasons,
+            };
+        }
+    };
+
+    match response.status {
+        200..=299 => {
+            score += 40;
+            reasons.push(Reason::Http2xx);
+        }
+
+        300..=399 => {
+            score += 15;
+            reasons.push(Reason::Redirect);
+        }
+
+        400..=499 => {
+            reasons.push(Reason::ClientError);
+        }
+
+        500..=599 => {
+            score += 10;
+            reasons.push(Reason::ServerError);
+        }
+
+        _ => {}
+    }
+
+    // ----------------------------
+    // Rule metadata
+    // ----------------------------
+    score += calculate_metadata_score(scan.payload.severity.weight() as u16 , scan.payload.confidence as u16);
+
+    // ----------------------------
+    // Final verdict
+    // ----------------------------
+
+    let verdict = match score {
+        90..=u16::MAX => Verdict::Confirmed,
+        70..=89 => Verdict::Likely,
+        40..=69 => Verdict::Suspicious,
+        _ => Verdict::Rejected,
+    };
+
+    VerdictResult {
+        verdict,
+        score,
+        reasons,
     }
 }
 
-/// اولویت عددی severity برای مرتب‌سازی. مقادیر ناشناخته (typo تو YAML مثلا) میرن ته لیست
-/// به‌جای اینکه کرش کنن یا رد بشن.
-fn severity_weight(sev: &str) -> u8 {
-    match sev.to_ascii_lowercase().as_str() {
-        "critical" => 4,
-        "high" => 3,
-        "medium" => 2,
-        "low" => 1,
-        "info" | "informational" => 0,
-        _ => 0,
-    }
-}
+pub fn summarize(results: &[ScanResult]) -> VerdictSummary {
 
-pub fn summarize(results: &[ScanResult]) -> (usize, usize, usize) {
-    let mut ok = 0;
-    let mut failed = 0;
-    let mut errored = 0;
+    let mut summary = VerdictSummary {
+        confirmed: 0,
+        likely: 0,
+        suspicious: 0,
+        rejected: 0,
+        errors: 0,
+    };
+
     for r in results {
-        match classify(r) {
-            Verdict::Ok => ok += 1,
-            Verdict::Failed => failed += 1,
-            Verdict::Errored => errored += 1,
+
+        match classify(r).verdict {
+
+            Verdict::Confirmed =>
+                summary.confirmed += 1,
+
+            Verdict::Likely =>
+                summary.likely += 1,
+
+            Verdict::Suspicious =>
+                summary.suspicious += 1,
+
+            Verdict::Rejected =>
+                summary.rejected += 1,
+
+            Verdict::Error =>
+                summary.errors += 1,
         }
     }
-    (ok, failed, errored)
+
+    summary
+}
+
+fn calculate_metadata_score(
+    severity_weight: u16,
+    confidence: u16
+) -> u16 {
+    severity_weight * 10 + confidence
+}
+
+struct ReportItem<'a> {
+    scan: &'a ScanResult,
+    verdict: VerdictResult,
 }
 
 /// این رو مستقیم از کنسول صدا بزن، بعد از scanner.run_full_scan(...)
@@ -67,54 +186,73 @@ pub fn summarize(results: &[ScanResult]) -> (usize, usize, usize) {
 /// چون این‌ها همونایی هستن که اول باید دستی بررسیشون کنی.
 pub fn print_report(results: &[ScanResult]) {
     println!("\n[+] ===== Scan Report =====");
+    let report: Vec<ReportItem> = results
+    .iter()
+    .map(|scan| ReportItem {
+        verdict: classify(scan),
+        scan,
+    })
+    .collect();
+    
+    let interesting: Vec<&ReportItem> = report
+    .iter()
+    .filter(|item| {
+        matches!(
+            item.verdict.verdict,
+            Verdict::Confirmed | Verdict::Likely
+        )
+    })
+    .collect();
 
-    let mut ok_results: Vec<&ScanResult> = results.iter()
-        .filter(|r| classify(r) == Verdict::Ok)
-        .collect();
-    ok_results.sort_by(|a, b| {
-        let a_w = (severity_weight(&a.payload.severity), a.payload.confidence);
-        let b_w = (severity_weight(&b.payload.severity), b.payload.confidence);
-        b_w.cmp(&a_w)
-    });
-
-    if !ok_results.is_empty() {
-        println!("  -- احتمالی (Ok, به ترتیب اهمیت) --");
-        for r in &ok_results {
-            let status = r.response.as_ref().map(|resp| resp.status).unwrap_or(0);
+    if !interesting.is_empty() {
+        println!("[!] Sorted by majority.");
+        for r in &interesting {
+            let status = r.scan.response.as_ref().map(|resp| resp.status).unwrap_or(0);
             println!(
                 "  [✅ OK] severity={} confidence={} rule={} {} {} -> {}",
-                r.payload.severity, r.payload.confidence, r.payload.rule_id,
-                r.payload.method, r.payload.url, status
+                r.scan.payload.severity, r.scan.payload.confidence, r.scan.payload.rule_id,
+                r.scan.payload.method, r.scan.payload.url, status
             );
         }
     }
 
-    let others: Vec<&ScanResult> = results.iter()
-        .filter(|r| classify(r) != Verdict::Ok)
+    let others: Vec<&ReportItem> = report
+        .iter()
+        .filter(|item| {
+            !matches!(
+                item.verdict.verdict,
+                Verdict::Confirmed | Verdict::Likely
+            )
+        })
         .collect();
     if !others.is_empty() {
-        println!("  -- بقیه --");
+        println!("[+] The rest:");
         for r in others {
-            let v = classify(r);
-            let tag = match v {
-                Verdict::Ok => unreachable!(),
-                Verdict::Failed => "⚠️  FAIL",
-                Verdict::Errored => "❌ ERR",
+            let tag = match r.verdict.verdict {
+                Verdict::Suspicious => "⚠️ Suspicious",
+                Verdict::Rejected => "❌ Rejected",
+                Verdict::Error => "💀 Error",
+                Verdict::Confirmed => "🔥 Confirmed",
+                Verdict::Likely => "⚠️ Likely",
             };
-            let status_str = r.response.as_ref()
+                let status_str = r.scan.response.as_ref()
                 .map(|resp| resp.status.to_string())
                 .unwrap_or_else(|| "-".to_string());
             println!(
                 "  [{}] rule={} {} {} -> {}",
-                tag, r.payload.rule_id, r.payload.method, r.payload.url, status_str
+                tag, r.scan.payload.rule_id, r.scan.payload.method, r.scan.payload.url, status_str
             );
         }
     }
 
-    let (ok, failed, errored) = summarize(results);
+    let summary = summarize(results);
     println!(
-        "[+] Total: {} | OK: {} | Failed: {} | Errored: {}",
-        results.len(), ok, failed, errored
+        "[+] Total: {} | Confirmed: {} | Likely: {} | Suspicious: {} | Rejected: {} | Error: {}",
+        results.len(),
+        summary.confirmed,
+        summary.likely,
+        summary.suspicious,
+        summary.rejected,
+        summary.errors
     );
-    println!("[+] =========================\n");
 }

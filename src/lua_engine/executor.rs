@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 use crate::{
-    engine::rule::RuleFile,
+    engine::rule::{RuleFile, Severity},
     crawler::crawler_config::Target,
     lua_engine::matcher
 };
@@ -20,8 +20,8 @@ pub struct LuaPayload {
     pub body: Option<String>,
     pub action: String,
     pub rule_id: String,
-    pub severity: String,
-    pub confidence: u32,
+    pub severity: Severity,
+    pub confidence: u8,
 }
 
 // حداکثر زمانی که یک رول اجازه دارد داخل لوا اجرا شود. اگر رد شود، اجرا با خطا قطع می‌شود
