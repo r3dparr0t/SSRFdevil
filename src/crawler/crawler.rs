@@ -33,6 +33,15 @@ const SSRF_PARAMS: &[&str] = &[
     "fetch", "proxy", "uri", "ref", "load", "callback", "webhook",
 ];
 
+fn tag_from_param_name(name: &str) -> Option<TargetTag> {
+    match name {
+        "redirect" | "next" | "return" | "return_to" | "out" | "to" | "dest" | "path" | "view" => Some(TargetTag::Redirect),
+        "callback" | "ref" => Some(TargetTag::Callback),
+        "webhook" | "fetch" | "proxy" | "uri" | "url" | "src" | "source" | "target" | "host" | "load" | "image" => Some(TargetTag::Webhook),
+        _ => None,
+    }
+}
+
 pub struct SelectorRule {
     pub selector: &'static str,
     pub attrs: &'static [&'static str],
@@ -479,13 +488,22 @@ impl Crawler {
 
                             if new_targets.iter().any(|t: &Target| t.url == target_url) { continue; }
 
-                            let params = target_url.query_pairs()
-                                .map(|(k, _)| Param {
-                                    name: k.to_string(),
-                                    value: None,
-                                    location: ParamLocation::Query,
-                                })
-                                .collect();
+                            let params: Vec<Param> = target_url.query_pairs()
+								.map(|(k, _)| Param {
+									name: k.to_string(),
+									value: None,
+									location: ParamLocation::Query,
+								})
+								.collect();
+
+							let mut final_tags = final_tags; // mutable کن
+							for p in &params {
+								if let Some(t) = tag_from_param_name(&p.name) {
+									if !final_tags.contains(&t) {
+										final_tags.push(t);
+									}
+								}
+							}
 
                             new_targets.push(Target {
                                 url: target_url.clone(),
