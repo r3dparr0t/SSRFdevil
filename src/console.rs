@@ -333,22 +333,44 @@ pub async fn run_interactive_console(
                 println!("[i] {} total rule(s).", last_results.len());
             }
             "use" => {
-                if arg.is_empty() {
-                    println!("Usage: use <index|rule_id|tag|all>");
-                    continue;
-                }
-                if arg == "all" {
-                    selected_rules = rule_engine::search_rules(db, "");
-                    println!("[+] Loaded ALL {} rules.", selected_rules.len());
-                } else if let Some(rules) = select_rule(db, arg, &last_results) {
-                    selected_rules = rules;
-                    println!("[+] Selected {} rule(s).", selected_rules.len());
-                    rule_engine::display_result_rules(&selected_rules);
-                } else {
-                    println!("[!] Numeric selection requires an active search result or an ID.\nRun 'list' or 'search' first.");
-                }
-                *rule_engine::SELECTED_RULES.write().unwrap() = selected_rules.clone();
-            }
+				if arg.is_empty() {
+					println!("Usage: use <index|rule_id|tag|all>[,<index|rule_id|tag>...]");
+					continue;
+				}
+				if arg == "all" {
+					selected_rules = rule_engine::search_rules(db, "");
+					println!("[+] Loaded ALL {} rules.", selected_rules.len());
+				} else {
+					let tokens: Vec<&str> = arg.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+					let mut combined: Vec<RuleFile> = Vec::new();
+					let mut not_found: Vec<&str> = Vec::new();
+
+					for token in &tokens {
+						match select_rule(db, token, &last_results) {
+							Some(rules) => {
+								for r in rules {
+									if !combined.iter().any(|c: &RuleFile| c.meta.id == r.meta.id) {
+										combined.push(r);
+									}
+								}
+							}
+							None => not_found.push(token),
+						}
+					}
+
+					if combined.is_empty() {
+						println!("[!] No matching rule(s) found for: {}", tokens.join(", "));
+					} else {
+						selected_rules = combined;
+						println!("[+] Selected {} rule(s).", selected_rules.len());
+						if !not_found.is_empty() {
+							println!("[!] Not found: {}", not_found.join(", "));
+						}
+						rule_engine::display_result_rules(&selected_rules);
+					}
+				}
+				*rule_engine::SELECTED_RULES.write().unwrap() = selected_rules.clone();
+			}
             "crawl" => {
                 println!("[*] Crawling {}...", target_url);
                 crawler.run().await;
