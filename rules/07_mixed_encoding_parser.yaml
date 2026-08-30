@@ -12,21 +12,19 @@ meta:
   severity: high
   tags: [encoding, octal, hex, parser, bypass]
   references: []
-
 match:
   schemes: [http, https]
   kinds: [Endpoint]
   allowed_methods: [GET, POST]
   required_tags: [Redirect, Callback, Webhook]
   require_params: true
-
 script:
   language: lua
   entry: run_batch
   source: |
     function run_batch(targets)
         local results = {}
-        local payload_vector = "http://google.com@"0177.0x0.0.1"
+        local payload_vector = "http://google.com@0177.0x0.0.1"
         local host_value = "0177.0x0.0.1"
         for _, target in ipairs(targets) do
             local base_url = target.url

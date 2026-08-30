@@ -12,31 +12,30 @@ meta:
   severity: high
   tags: [ipv6, zone-id, bypass]
   references: []
-
 match:
   schemes: [http, https]
   kinds: [Endpoint]
   allowed_methods: [GET, POST]
   required_tags: [Redirect, Callback, Webhook]
   require_params: true
-
 script:
   language: lua
   entry: run_batch
   source: |
     function run_batch(targets)
         local results = {}
-        local payload_vector = "http://[::1%25eth0]"  -- percent-encoded %25
-        
+        local payload_vector = "http://[::1%25eth0]"
+
         for _, target in ipairs(targets) do
             local base_url = target.url
-            
+
             for _, param in ipairs(target.params) do
                 local new_url = base_url
-                
+
                 if param.location == "Query" then
                     local pattern = param.name .. "=[^&]*"
-                    local replacement = param.name .. "=" .. payload_vector
+                    local safe_vector = payload_vector:gsub("%%", "%%%%")
+                    local replacement = param.name .. "=" .. safe_vector
                     if new_url:find(pattern) then
                         new_url = new_url:gsub(pattern, replacement)
                     else
@@ -44,7 +43,6 @@ script:
                         new_url = new_url .. sep .. replacement
                     end
                 end
-
                 table.insert(results, {
                     url = new_url,
                     method = target.method or "GET",
