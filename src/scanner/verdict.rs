@@ -8,12 +8,25 @@
 // نکته‌ی مهم: تو rule.rs فعلا هیچ فیلدی برای "این پاسخ یعنی موفق" وجود نداره
 // (نه expected_status، نه body/header indicator regex) - فقط MatchConfig هست که
 // قبل از اجرا تارگت‌ها رو فیلتر می‌کنه، نه بعد از اجرا جواب رو تفسیر کنه.
-// پس تنها سیگنال واقعی برای Ok/Failed همچنان status codeست. کاری که اینجا اضافه
-// شده اینه که با meta.severity و meta.confidence رول، نتیجه رو اولویت‌بندی می‌کنیم:
-// یه 200 از یه رول severity=critical/confidence بالا خیلی مهم‌تر از یه 200
-// از یه رول کم‌اهمیته. اگه بعدا خواستی قضاوت واقعا content-aware بشه
-// (مثلا body باید فلان رجکس رو داشته باشه) باید یه بلاک `detect` به RuleFile/YAML
-// اضافه کنیم - الان اون زیرساخت وجود نداره.
+//
+// نسخه‌ی قبلی این فایل یه باگ اساسی داشت: severity_weight*10 + confidence می‌تونست
+// به‌تنهایی (بدون توجه به این‌که پاسخ چی بوده) از آستانه‌ی Confirmed رد بشه. یعنی
+// یه رول severity=high/confidence=90 حتی وقتی سرور با 403 "Access Denied" جواب
+// می‌داد Confirmed می‌شد، چون هیچ status codeای امتیاز رو صفر یا منفی نمی‌کرد.
+//
+// اصلاح‌شده: حالا status code سیگنال غالبه، نه متادیتا:
+//   - 2xx / 3xx / 5xx: امتیاز پایه می‌گیرن و متادیتای رول روش سوار میشه (مدیفایر محدود)
+//   - 4xx: floor سخت داره -> همیشه Rejected، صرف‌نظر از severity/confidence رول،
+//     چون تو عمل یعنی اپلیکیشن قبل از هر اتفاقی درخواست رو رد کرده
+// علاوه بر این، یه چک عمومی و مستقل از rule-schema روی متن پاسخ اضافه شده: اگه
+// body حاوی عبارات رایج رد شدن باشه (denied/forbidden/blocked/...)، صرف‌نظر از
+// status، verdict به Rejected افت می‌کنه. این چک به هیچ فیلدی تو RuleFile/YAML
+// نیاز نداره - کاملاً جدا از تعریف رول‌هاست.
+//
+// چیزی که این فایل هنوز حل نمی‌کنه: false positive مثل اندپوینت آزمایشی که بدون
+// زدن هیچ درخواستی، متن "Internal Admin Interface" رو با status 200 برمی‌گردونه.
+// تشخیص واقعی این مورد نیاز به یه لایه‌ی content-aware اختصاصی به هر رول داره
+// (یه بلاک detect جدا از match/script) که فعلا خارج از scope همین فیکسه.
 
 use crate::scanner::scanner::ScanResult;
 
@@ -39,6 +52,7 @@ pub struct VerdictResult {
     pub score: u16,
     pub reasons: Vec<Reason>,
 }
+
 #[derive(Debug, Clone)]
 pub enum Reason {
     Http2xx,
@@ -48,10 +62,23 @@ pub enum Reason {
     Timeout,
     Dns,
     ConnectionRefused,
+    // سیگنال عمومی و مستقل از رول: body حاوی عبارت رایج رد شدنه.
+    NegativeIndicator,
 }
 
+// عبارات عمومی و رایج رد شدن که اکثر اپلیکیشن‌ها موقع بلاک کردن یه درخواست
+// برمی‌گردونن. عمداً generic نگه داشته شده (نه رجکس رول-اسپسیفیک)، چون این
+// چک باید مستقل از تعریف تک‌تک رول‌ها باشه.
+const REJECTION_KEYWORDS: &[&str] = &[
+    "access denied",
+    "forbidden",
+    "blocked",
+    "unauthorized",
+    "permission denied",
+    "not allowed",
+];
+
 pub fn classify(scan: &ScanResult) -> VerdictResult {
-    let mut score: u16 = 0;
     let mut reasons = Vec::new();
 
     // ----------------------------
@@ -89,42 +116,65 @@ pub fn classify(scan: &ScanResult) -> VerdictResult {
         }
     };
 
-    match response.status {
+    // چک عمومی روی متن پاسخ - قبل از هر محاسبه‌ی امتیاز، چون این سیگنال
+    // باید بتونه صرف‌نظر از status code یا متادیتای رول، verdict رو رد کنه.
+    let body_text = String::from_utf8_lossy(&response.body).to_ascii_lowercase();
+    let has_rejection_text = REJECTION_KEYWORDS.iter().any(|kw| body_text.contains(kw));
+    if has_rejection_text {
+        reasons.push(Reason::NegativeIndicator);
+    }
+
+    // status code به‌عنوان سیگنال غالب. توجه: 4xx یه floor سخته، نه فقط
+    // "امتیاز نگرفتن" - چون تو عمل یعنی اپلیکیشن قبل از انجام کاری درخواست
+    // رو رد کرده، پس هیچ متادیتای رولی نباید بتونه این رو دور بزنه.
+    let status_score: i32 = match response.status {
         200..=299 => {
-            score += 40;
             reasons.push(Reason::Http2xx);
+            55
         }
-
         300..=399 => {
-            score += 15;
             reasons.push(Reason::Redirect);
+            25
         }
-
         400..=499 => {
             reasons.push(Reason::ClientError);
+            i32::MIN // floor سخت؛ پایین‌تر پردازش می‌شه
         }
-
         500..=599 => {
-            score += 10;
             reasons.push(Reason::ServerError);
+            15
         }
+        _ => 0,
+    };
 
-        _ => {}
+    // اگه رد شدن قطعیه (چه از طریق 4xx، چه از طریق متن body)، همینجا با
+    // Rejected برگرد؛ متادیتای رول اجازه نداره این تصمیم رو دور بزنه.
+    if status_score == i32::MIN || has_rejection_text {
+        return VerdictResult {
+            verdict: Verdict::Rejected,
+            score: 0,
+            reasons,
+        };
     }
 
     // ----------------------------
-    // Rule metadata
+    // Rule metadata - فقط یه مدیفایر محدوده، نه یه مسیر مستقل به Confirmed.
+    // بیشترین مقداری که می‌تونه بده: severity critical(4)*3 + confidence 100/5
+    // = 12 + 20 = 32، که به‌تنهایی حتی با بالاترین status_score (55) هم به
+    // ۹۰ (آستانه‌ی Confirmed) نمی‌رسه مگر این‌که واقعا 2xx باشه.
     // ----------------------------
-    score += calculate_metadata_score(scan.payload.severity.weight() as u16 , scan.payload.confidence as u16);
+    let metadata_score =
+        calculate_metadata_score(scan.payload.severity.weight() as i32, scan.payload.confidence as i32);
+
+    let score = (status_score + metadata_score).max(0) as u16;
 
     // ----------------------------
     // Final verdict
     // ----------------------------
-
     let verdict = match score {
-        90..=u16::MAX => Verdict::Confirmed,
-        70..=89 => Verdict::Likely,
-        40..=69 => Verdict::Suspicious,
+        70..=u16::MAX => Verdict::Confirmed,
+        50..=69 => Verdict::Likely,
+        30..=49 => Verdict::Suspicious,
         _ => Verdict::Rejected,
     };
 
@@ -169,11 +219,14 @@ pub fn summarize(results: &[ScanResult]) -> VerdictSummary {
     summary
 }
 
+// مدیفایر محدود: severity_weight*3 (0..=12) + confidence/5 (0..=20) => جمعاً
+// حداکثر 32. این عمداً کوچیکه تا هیچ ترکیبی از severity/confidence نتونه
+// به‌تنهایی status_score رو دور بزنه یا از 4xx floor عبور کنه.
 fn calculate_metadata_score(
-    severity_weight: u16,
-    confidence: u16
-) -> u16 {
-    severity_weight * 10 + confidence
+    severity_weight: i32,
+    confidence: i32
+) -> i32 {
+    severity_weight * 3 + confidence / 5
 }
 
 struct ReportItem<'a> {
