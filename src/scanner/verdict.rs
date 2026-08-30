@@ -239,73 +239,75 @@ struct ReportItem<'a> {
 /// چون این‌ها همونایی هستن که اول باید دستی بررسیشون کنی.
 pub fn print_report(results: &[ScanResult]) {
     println!("\n[+] ===== Scan Report =====");
-    let report: Vec<ReportItem> = results
-    .iter()
-    .map(|scan| ReportItem {
-        verdict: classify(scan),
-        scan,
-    })
-    .collect();
-    
+    let mut report: Vec<ReportItem> = results
+        .iter()
+        .map(|scan| ReportItem { verdict: classify(scan), scan })
+        .collect();
+
+    // مرتب‌سازی نزولی بر اساس امتیاز - بالاترین یافته‌ها اول میان
+    report.sort_by(|a, b| b.verdict.score.cmp(&a.verdict.score));
+
     let interesting: Vec<&ReportItem> = report
-    .iter()
-    .filter(|item| {
-        matches!(
-            item.verdict.verdict,
-            Verdict::Confirmed | Verdict::Likely
-        )
-    })
-    .collect();
+        .iter()
+        .filter(|item| matches!(item.verdict.verdict, Verdict::Confirmed | Verdict::Likely))
+        .collect();
 
     if !interesting.is_empty() {
-        println!("[!] Sorted by majority.");
+        println!("[!] {} finding(s), sorted by score:\n", interesting.len());
         for r in &interesting {
             let status = r.scan.response.as_ref().map(|resp| resp.status).unwrap_or(0);
+            let tag = if r.verdict.verdict == Verdict::Confirmed { "🔥" } else { "⚠️" };
             println!(
-                "  [✅ OK] severity={} confidence={} rule={} {} {} -> {}",
+                "  {} [{:>3}] sev={:<8} conf={:<3} rule={:<28} {} {} -> {}",
+                tag, r.verdict.score,
                 r.scan.payload.severity, r.scan.payload.confidence, r.scan.payload.rule_id,
                 r.scan.payload.method, r.scan.payload.url, status
             );
         }
+    } else {
+        println!("[!] No confirmed or likely findings.");
     }
 
-    let others: Vec<&ReportItem> = report
-        .iter()
-        .filter(|item| {
-            !matches!(
-                item.verdict.verdict,
-                Verdict::Confirmed | Verdict::Likely
-            )
-        })
-        .collect();
-    if !others.is_empty() {
-        println!("[+] The rest:");
-        for r in others {
-            let tag = match r.verdict.verdict {
-                Verdict::Suspicious => "⚠️ Suspicious",
-                Verdict::Rejected => "❌ Rejected",
-                Verdict::Error => "💀 Error",
-                Verdict::Confirmed => "🔥 Confirmed",
-                Verdict::Likely => "⚠️ Likely",
-            };
-                let status_str = r.scan.response.as_ref()
-                .map(|resp| resp.status.to_string())
-                .unwrap_or_else(|| "-".to_string());
-            println!(
-                "  [{}] rule={} {} {} -> {}",
-                tag, r.scan.payload.rule_id, r.scan.payload.method, r.scan.payload.url, status_str
-            );
+    // به‌جای چاپ تک‌تک URLهای رد/خطاشده، به‌ازای هر رول فقط تعدادشون رو نشون بده
+    use std::collections::{HashMap, HashSet};
+    let mut rejected_by_rule: HashMap<&str, usize> = HashMap::new();
+    let mut error_by_rule: HashMap<&str, usize> = HashMap::new();
+    let mut suspicious_by_rule: HashMap<&str, usize> = HashMap::new();
+
+    for item in &report {
+        match item.verdict.verdict {
+            Verdict::Rejected => *rejected_by_rule.entry(&item.scan.payload.rule_id).or_insert(0) += 1,
+            Verdict::Error => *error_by_rule.entry(&item.scan.payload.rule_id).or_insert(0) += 1,
+            Verdict::Suspicious => *suspicious_by_rule.entry(&item.scan.payload.rule_id).or_insert(0) += 1,
+            _ => {}
+        }
+    }
+
+    if !rejected_by_rule.is_empty() || !error_by_rule.is_empty() || !suspicious_by_rule.is_empty() {
+        println!("\n[+] Filtered out (by rule):");
+        let mut rule_ids: Vec<&str> = rejected_by_rule.keys()
+            .chain(error_by_rule.keys())
+            .chain(suspicious_by_rule.keys())
+            .copied()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        rule_ids.sort();
+        for rule_id in rule_ids {
+            let r = rejected_by_rule.get(rule_id).copied().unwrap_or(0);
+            let e = error_by_rule.get(rule_id).copied().unwrap_or(0);
+            let s = suspicious_by_rule.get(rule_id).copied().unwrap_or(0);
+            let mut parts = Vec::new();
+            if r > 0 { parts.push(format!("{} rejected", r)); }
+            if s > 0 { parts.push(format!("{} suspicious", s)); }
+            if e > 0 { parts.push(format!("{} error", e)); }
+            println!("  - {:<28} {}", rule_id, parts.join(", "));
         }
     }
 
     let summary = summarize(results);
     println!(
-        "[+] Total: {} | Confirmed: {} | Likely: {} | Suspicious: {} | Rejected: {} | Error: {}",
-        results.len(),
-        summary.confirmed,
-        summary.likely,
-        summary.suspicious,
-        summary.rejected,
-        summary.errors
+        "\n[+] Total: {} | Confirmed: {} | Likely: {} | Suspicious: {} | Rejected: {} | Error: {}",
+        results.len(), summary.confirmed, summary.likely, summary.suspicious, summary.rejected, summary.errors
     );
 }
