@@ -28,8 +28,6 @@ impl Default for ScannerConfig {
     }
 }
 
-/// نتیجه‌ی اجرای یک payload روی شبکه
-#[allow(dead_code)]
 pub struct ScanResult {
     pub payload: LuaPayload,
     pub response: Option<ResponseData>,
@@ -40,11 +38,10 @@ pub struct Scanner {
     engine: RequestEngine,
     config: ScannerConfig,
     pub rule_map: HashMap<String, RuleMeta>,
-    db: Arc<Db>,
+    _db: Arc<Db>,
 }
 
 impl Scanner {
-    /// سازنده‌ی جدید – خودش قواعد را از دیتابیس می‌خواند
     pub fn new(engine: RequestEngine, config: ScannerConfig, db: Arc<Db>) -> Self {
         let all_rules = rule_engine::load_all_rules(&db);
         let rule_map = all_rules
@@ -56,7 +53,7 @@ impl Scanner {
             engine,
             config,
             rule_map,
-            db,
+            _db: db,
         }
     }
 

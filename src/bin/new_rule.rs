@@ -23,7 +23,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛠️  SSRFdevil Rule Generator");
     println!("==============================");
 
-    // ۱. گرفتن ورودی از کاربر
     print!("📛 Rule Name (e.g., 'IPv4 localhost bypass'): ");
     io::stdout().flush()?;
     let mut name = String::new();
@@ -53,7 +52,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     io::stdin().read_line(&mut severity_str)?;
     let severity_str = severity_str.trim().to_lowercase();
 
-    // تبدیل رشته به Severity با پیش‌فرض در صورت خطا
     let severity = parse_severity(&severity_str).unwrap_or_else(|e| {
         eprintln!("⚠️  {} – defaulting to 'medium'", e);
         Severity::Medium
@@ -65,16 +63,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     io::stdin().read_line(&mut rank_input)?;
     let rank: u32 = rank_input.trim().parse().unwrap_or(50);
 
-    // ۲. ساخت ID از نام
     let id = name
         .to_lowercase()
         .replace(' ', "_")
         .replace(['.', '/', '\\'], "_");
 
-    // ۳. تاریخ امروز
     let today = Local::now().format("%Y-%m-%d").to_string();
 
-    // ۴. جمع‌آوری کد Lua از کاربر (چند خطی)
     println!("📜 Enter Lua script source (type 'END' on a new line to finish):");
     let mut source_lines = Vec::new();
     let mut line = String::new();
@@ -87,7 +82,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let source = source_lines.concat();
 
-    // ۵. ساخت ساختار نهایی
     let rule = RuleFile {
         meta: RuleMeta {
             id: id.clone(),
@@ -99,9 +93,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             updated: today.clone(),
             rank,
             confidence: 90,
-            severity, // اکنون از نوع Severity است
+            severity,
             tags,
             references: vec![],
+            success_indicator: Vec::new(),  // ← اضافه شد
+            failure_indicator: Vec::new(),  // ← اضافه شد
         },
         r#match: MatchConfig {
             kinds: vec![],
@@ -118,7 +114,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    // ۶. شماره‌گذاری فایل (پیدا کردن آخرین شماره)
     fs::create_dir_all(paths::RULES_DIR)?;
     let max_num = fs::read_dir(paths::RULES_DIR)?
         .filter_map(|e| e.ok())
@@ -136,7 +131,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filename = format!("{:02}_{}.yaml", next_num, id);
     let filepath = Path::new(paths::RULES_DIR).join(&filename);
 
-    // ۷. ذخیره به YAML
     let yaml_str = serde_yaml::to_string(&rule)?;
     fs::write(&filepath, yaml_str)?;
 
