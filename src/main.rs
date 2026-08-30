@@ -118,7 +118,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let crawler = Arc::new(Crawler::new(engine.clone(), crawler_config));
     // new scanner 
-    let scanner = Arc::new(Scanner::new(engine.clone(), ScannerConfig::default()));
+	let scanner = Arc::new(Scanner::new(
+	    engine.clone(),
+	    ScannerConfig::default(),
+	    Arc::new(db.clone()),  // ← فقط db را پاس بده
+	));
     console::run_interactive_console(&db, target_url.as_str(), scanner, crawler, &mut engine).await;
     
 	Ok(())

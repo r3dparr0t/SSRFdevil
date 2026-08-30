@@ -1,3 +1,4 @@
+// src/engine/rule_engine.rs
 use sled::{Batch, Db, IVec};
 //use serde::{Deserialize, Serialize};
 use std::{
@@ -146,4 +147,12 @@ pub fn show_rule_details(rule: &RuleFile) {
     }
 
     println!();
+}
+
+/// بارگذاری همه‌ی قواعد موجود در دیتابیس
+pub fn load_all_rules(db: &Db) -> Vec<RuleFile> {
+    db.iter()
+        .filter_map(|res| res.ok())
+        .filter_map(|(_, value)| serde_json::from_slice::<RuleFile>(&value).ok())
+        .collect()
 }

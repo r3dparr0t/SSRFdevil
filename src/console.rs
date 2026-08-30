@@ -404,7 +404,7 @@ pub async fn run_interactive_console(
                 // 🔥 کلون کردن برای انتقال مالکیت به closure
                 let rules = selected_rules.clone();
                 let results = scanner.run_full_scan(targets, rules).await;
-                verdict::print_report(&results);
+                verdict::print_report(&results, &scanner.rule_map);
             }
             "info" | "show" => {
                 if arg.is_empty() {

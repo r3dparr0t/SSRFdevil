@@ -89,6 +89,10 @@ pub struct RuleMeta {
     pub severity: Severity,
     pub tags: Vec<String>,
     pub references: Vec<String>,
+    #[serde(default)]
+    pub success_indicator: Vec<String>,   // literal: / regex:
+    #[serde(default)]
+    pub failure_indicator: Vec<String>,   // literal: / regex:
 }
 
 // ۲. ساختار کامل فایل جدید YAML

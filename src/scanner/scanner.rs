@@ -1,5 +1,6 @@
 // src/scanner/scanner.rs
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+use sled::Db;
 use tokio::sync::Semaphore;
 use url::Url;
 use reqwest::{Method, header::{HeaderMap, HeaderName, HeaderValue}};
@@ -9,7 +10,8 @@ use crate::{
         request_engine::RequestEngine,
         request::RequestData,
         response::ResponseData,
-        rule::RuleFile,
+        rule::{RuleFile, RuleMeta},
+        rule_engine,
     },
     crawler::crawler_config::Target,
     lua_engine::executor::{self, LuaPayload},
@@ -26,8 +28,8 @@ impl Default for ScannerConfig {
     }
 }
 
-/// نتیجه‌ی اجرای یک payload روی شبکه. تشخیص false-positive و تحلیل بعدا
-/// روی همین ساختار سوار میشه؛ فعلا فقط response خام رو نگه می‌داریم.
+/// نتیجه‌ی اجرای یک payload روی شبکه
+#[allow(dead_code)]
 pub struct ScanResult {
     pub payload: LuaPayload,
     pub response: Option<ResponseData>,
@@ -37,18 +39,32 @@ pub struct ScanResult {
 pub struct Scanner {
     engine: RequestEngine,
     config: ScannerConfig,
+    pub rule_map: HashMap<String, RuleMeta>,
+    db: Arc<Db>,
 }
 
 impl Scanner {
-    pub fn new(engine: RequestEngine, config: ScannerConfig) -> Self {
-        Scanner { engine, config }
+    /// سازنده‌ی جدید – خودش قواعد را از دیتابیس می‌خواند
+    pub fn new(engine: RequestEngine, config: ScannerConfig, db: Arc<Db>) -> Self {
+        let all_rules = rule_engine::load_all_rules(&db);
+        let rule_map = all_rules
+            .into_iter()
+            .map(|r| (r.meta.id.clone(), r.meta))
+            .collect();
+
+        Scanner {
+            engine,
+            config,
+            rule_map,
+            db,
+        }
     }
 
-    /// نقطه‌ی ورود واحد از کنسول: هم batch matching (executor، روی thread pool بلاکینگ)
-    /// و هم ارسال واقعی payloadها رو یکجا انجام می‌ده. چیزی که قبلا تو console.rs
-    /// پخش بود (spawn_blocking روی process_all_batches_single_pass + صدا زدن run)
-    /// الان همینجا کپسوله شده؛ کنسول فقط `scanner.run_full_scan(targets, rules).await` صدا می‌زنه.
-    pub async fn run_full_scan(self: &Arc<Self>, targets: Vec<Target>, rules: Vec<RuleFile>) -> Vec<ScanResult> {
+    pub async fn run_full_scan(
+        self: &Arc<Self>,
+        targets: Vec<Target>,
+        rules: Vec<RuleFile>,
+    ) -> Vec<ScanResult> {
         println!("[+] Got {} target(s). Matching selected rules with targets...", targets.len());
 
         let payloads = match tokio::task::spawn_blocking(move || {
@@ -64,9 +80,6 @@ impl Scanner {
         self.run(payloads).await
     }
 
-    /// اجرای موازی همه‌ی payloadهای تولیدشده توسط executor روی شبکه.
-    /// دقیقا الگوی کراولر: Arc<Self> + Semaphore برای محدود کردن Worker،
-    /// delay_engine برای jitter بین درخواست‌ها.
     pub async fn run(self: &Arc<Self>, payloads: Vec<LuaPayload>) -> Vec<ScanResult> {
         if payloads.is_empty() {
             println!("[!] No payload to scan.");
@@ -120,8 +133,9 @@ impl Scanner {
         }
     }
 
-    /// دقیقا همون منطقی که قبلا run_payload تو executor.rs بود؛ فقط جابجا شده اینجا.
-    fn build_request(payload: &LuaPayload) -> Result<RequestData, Box<dyn std::error::Error + Send + Sync>> {
+    fn build_request(
+        payload: &LuaPayload,
+    ) -> Result<RequestData, Box<dyn std::error::Error + Send + Sync>> {
         let url = Url::parse(&payload.url)?;
         let method = Method::from_bytes(payload.method.as_bytes())?;
 
