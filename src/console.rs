@@ -406,6 +406,35 @@ pub async fn run_interactive_console(
                 let results = scanner.run_full_scan(targets, rules).await;
                 verdict::print_report(&results, &scanner.rule_map);
             }
+            "cookie" | "session" => {
+                if arg == "clear" || arg == "off" {
+                    // غیرفعال کردن کوکی
+                    crate::engine::cookie_engine::clear_cookie();
+                    engine.config.cookies = false;
+                    println!("[🍪] Cookie cleared and disabled.");
+                } else if arg == "status" {
+                    match crate::engine::cookie_engine::get_cookie() {
+                        Some(c) => println!("[🍪] Current cookie: {}", c),
+                        None => println!("[🍪] No cookie set."),
+                    }
+                    println!("[🍪] Cookie injection is {}", if engine.config.cookies { "ENABLED" } else { "DISABLED" });
+                } else {
+                    // تنظیم کوکی جدید
+                    let cookie_input = if arg.is_empty() {
+                        prompt("🍪 Enter session cookie (e.g., 'session_id=abc123; token=xyz'): ")
+                    } else {
+                        arg.to_string()
+                    };
+                    
+                    if !cookie_input.is_empty() {
+                        crate::engine::cookie_engine::set_cookie(&cookie_input);
+                        engine.config.cookies = true;  // ← فعال کردن خودکار
+                        println!("[✅] Cookie set and enabled for all requests!");
+                    } else {
+                        println!("[!] Empty cookie, ignored.");
+                    }
+                }
+            }
             "info" | "show" => {
                 if arg.is_empty() {
                     if selected_rules.is_empty() { println!("[!] No rule active."); }
@@ -445,14 +474,15 @@ fn select_rule(db: &Db, input: &str, last_results: &[RuleFile]) -> Option<Vec<Ru
 fn print_help() {
     println!(
         "\nCommands:
-        search <text>        Search database rules
-        use <idx|id|all>     Select a single rule, or 'all|tag' for Batch Scanning
-        list /ls             Show all loaded rules
-        run /scan            Execute selected rule(s) over crawled targets
-        crawl                Trigger deep target auditing
-        info /show <idx|id>  Inspect specific rule parameters
-        back /b              Clear active rule/batch queue
-        settings             Toggle UA profiles & Batch Modes (Auto/Step)
-        exit /quit           Terminate active terminal\n"
+        search [text]                   Search database rules
+        use [idx|id|all]                Select a single rule, or 'all|tag' for Batch Scanning
+        list /ls                        Show all loaded rules
+        run /scan                       Execute selected rule(s) over crawled targets
+        crawl                           Trigger deep target auditing
+        cookie /session [clear|status]  Set/clear/show session cookie (auto-enables injection)
+        info/ show [idx|id]             Inspect specific rule parameters
+        back /b                         Clear active rule/batch queue
+        settings                        Toggle UA profiles & Batch Modes (Auto/Step)
+        exit /quit                      Terminate active terminal\n"
     );
 }
