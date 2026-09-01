@@ -7,7 +7,6 @@ use ssrfdevil::{
     paths,
 };
 
-/// تبدیل رشته به Severity، در صورت نامعتبر بودن خطا برمی‌گرداند.
 fn parse_severity(s: &str) -> Result<Severity, String> {
     match s.to_lowercase().as_str() {
         "informational" | "info" => Ok(Severity::Info),
@@ -20,9 +19,10 @@ fn parse_severity(s: &str) -> Result<Severity, String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🛠️  SSRFdevil Rule Generator");
-    println!("==============================");
+    println!("🛠️  SSRFdevil Rule Generator (v2 - Evidence-based)");
+    println!("====================================================");
 
+    // ----基本信息----
     print!("📛 Rule Name (e.g., 'IPv4 localhost bypass'): ");
     io::stdout().flush()?;
     let mut name = String::new();
@@ -50,12 +50,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     io::stdout().flush()?;
     let mut severity_str = String::new();
     io::stdin().read_line(&mut severity_str)?;
-    let severity_str = severity_str.trim().to_lowercase();
-
-    let severity = parse_severity(&severity_str).unwrap_or_else(|e| {
-        eprintln!("⚠️  {} – defaulting to 'medium'", e);
-        Severity::Medium
-    });
+    let severity = parse_severity(&severity_str.trim().to_lowercase())
+        .unwrap_or_else(|e| {
+            eprintln!("⚠️  {} – defaulting to 'medium'", e);
+            Severity::Medium
+        });
 
     print!("📈 Rank (higher is better, e.g., 60): ");
     io::stdout().flush()?;
@@ -63,6 +62,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     io::stdin().read_line(&mut rank_input)?;
     let rank: u32 = rank_input.trim().parse().unwrap_or(50);
 
+    // ---- confidence ----
+    println!("\n📊 Confidence (0-100) – how much do you trust this rule?");
+    println!("   - 80-100: strong evidence (e.g., reading /etc/passwd)");
+    println!("   - 60-79:  moderate (e.g., heuristic patterns)");
+    println!("   - 0-59:   weak / generic bypass (default)");
+    print!("Confidence [default 55]: ");
+    io::stdout().flush()?;
+    let mut conf_input = String::new();
+    io::stdin().read_line(&mut conf_input)?;
+    let confidence: u8 = conf_input.trim().parse().unwrap_or(55);
+
+    // ---- success_indicator ----
+    println!("\n✅ success_indicator (evidence that confirms success)");
+    println!("   Format: literal:pattern  or  regex:pattern");
+    println!("   Example: literal:root:x:0:0");
+    println!("   Enter one per line, empty line to finish:");
+    let mut success_indicators = Vec::new();
+    loop {
+        print!("  > ");
+        io::stdout().flush()?;
+        let mut line = String::new();
+        io::stdin().read_line(&mut line)?;
+        let line = line.trim();
+        if line.is_empty() { break; }
+        success_indicators.push(line.to_string());
+    }
+
+    // ---- failure_indicator ----
+    println!("\n❌ failure_indicator (evidence that confirms rejection)");
+    println!("   Format: literal:Access Denied  or  regex:blocked|denied");
+    println!("   Enter one per line, empty line to finish:");
+    let mut failure_indicators = Vec::new();
+    loop {
+        print!("  > ");
+        io::stdout().flush()?;
+        let mut line = String::new();
+        io::stdin().read_line(&mut line)?;
+        let line = line.trim();
+        if line.is_empty() { break; }
+        failure_indicators.push(line.to_string());
+    }
+
+    // ---- generate ID ----
     let id = name
         .to_lowercase()
         .replace(' ', "_")
@@ -70,7 +112,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let today = Local::now().format("%Y-%m-%d").to_string();
 
-    println!("📜 Enter Lua script source (type 'END' on a new line to finish):");
+    // ---- Lua script ----
+    println!("\n📜 Enter Lua script source (type 'END' on a new line to finish):");
     let mut source_lines = Vec::new();
     let mut line = String::new();
     while io::stdin().read_line(&mut line)? > 0 {
@@ -82,6 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let source = source_lines.concat();
 
+    // ---- build rule ----
     let rule = RuleFile {
         meta: RuleMeta {
             id: id.clone(),
@@ -92,12 +136,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             created: today.clone(),
             updated: today.clone(),
             rank,
-            confidence: 90,
+            confidence,
             severity,
             tags,
             references: vec![],
-            success_indicator: Vec::new(),  // ← اضافه شد
-            failure_indicator: Vec::new(),  // ← اضافه شد
+            success_indicator: success_indicators,
+            failure_indicator: failure_indicators,
         },
         r#match: MatchConfig {
             kinds: vec![],
@@ -109,11 +153,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         script: ScriptConfig {
             language: "lua".to_string(),
-            entry: "run_master_batch".to_string(),
+            entry: "run_batch".to_string(),  // ← نام استاندارد
             source,
         },
     };
 
+    // ---- save ----
     fs::create_dir_all(paths::RULES_DIR)?;
     let max_num = fs::read_dir(paths::RULES_DIR)?
         .filter_map(|e| e.ok())
@@ -137,6 +182,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n✅ Rule created successfully!");
     println!("📁 File: {}", filepath.display());
     println!("🔢 Rule ID: {}", id);
+    println!("📊 Confidence: {}", confidence);
+    println!("✅ success_indicator: {} patterns", rule.meta.success_indicator.len());
+    println!("❌ failure_indicator: {} patterns", rule.meta.failure_indicator.len());
 
     Ok(())
 }

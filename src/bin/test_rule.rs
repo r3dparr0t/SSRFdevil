@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::collections::HashMap;
 use serde::Deserialize;
 use mlua::{Lua, Table};
 
@@ -30,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let lua = Lua::new();
 
-    // ۱. ساخت دیتای ساختگی (Target) دقیقاً مشابه ساختاری که از دیتابیس/خزنده میاد
+    // ساخت دیتای ساختگی با structure جدید
     let targets_table = lua.create_table()?;
     let t1 = lua.create_table()?;
     t1.set("url", "http://example.com/api/fetch?file=test.txt&user=admin")?;
@@ -52,11 +53,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     t1.set("params", params_table)?;
     targets_table.set(1, t1)?;
 
-    // ۲. بارگذاری اسکریپت لوا
+    // بارگذاری و اجرا
     lua.load(&rule.script.source).exec()?;
 
-    // ۳. صدا زدن تابع ورود (entry)
-    let entry_fn = if rule.script.entry.is_empty() { "run_batch" } else { &rule.script.entry };
+    let entry_fn = if rule.script.entry.is_empty() {
+        "run_batch"
+    } else {
+        &rule.script.entry
+    };
     let func: mlua::Function = lua.globals().get(entry_fn)?;
     
     let results_table: Table = func.call(targets_table)?;
@@ -66,20 +70,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let res = pair?;
         let url: String = res.get("url")?;
         let method: String = res.get::<_, Option<String>>("method")?.unwrap_or("GET".into());
-        
-        println!("\n[Payload #{}]", i + 1);
-        println!("  ├── Method: {}", method);
-        println!("  ├── URL:    {}", url);
-        
-        if let Ok(headers) = res.get::<_, Table>("headers") {
-            println!("  └── Headers:");
-            for h in headers.pairs::<String, String>() {
-                if let Ok((k, v)) = h {
-                    println!("        {}: {}", k, v);
+        let action: String = res.get::<_, Option<String>>("action")?.unwrap_or("scan".into());
+
+        // هدرها
+        let mut headers = HashMap::new();
+        if let Ok(h) = res.get::<_, Table>("headers") {
+            for kv in h.pairs::<String, String>() {
+                if let Ok((k, v)) = kv {
+                    headers.insert(k, v);
                 }
             }
         }
+
+        // body (اختیاری)
+        let body = res.get::<_, Option<String>>("body")?;
+
+        println!("\n[Payload #{}]", i + 1);
+        println!("  ├── Method: {}", method);
+        println!("  ├── URL:    {}", url);
+        println!("  ├── Action: {}", action);
+        if !headers.is_empty() {
+            println!("  ├── Headers:");
+            for (k, v) in &headers {
+                println!("  │    {}: {}", k, v);
+            }
+        }
+        if let Some(b) = body {
+            println!("  └── Body:   {}", b);
+        } else {
+            println!("  └── Body:   (none)");
+        }
     }
+
+    println!("\n✅ Test completed successfully.");
 
     Ok(())
 }
