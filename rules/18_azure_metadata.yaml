@@ -8,10 +8,21 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 90
-  confidence: 85
+  confidence: 80
   severity: critical
   tags: [azure, metadata, cloud]
   references: []
+  success_indicator:
+    - "literal:vmId"
+    - "literal:resourceGroupName"
+    - "literal:subscriptionId"
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
+    - "literal:Not Found"
 
 match:
   schemes: [http, https]
@@ -45,7 +56,10 @@ script:
                 table.insert(results, {
                     url = new_url,
                     method = target.method or "GET",
-                    headers = { ["X-Forwarded-For"] = host_value },
+                    headers = { 
+                        ["X-Forwarded-For"] = host_value,
+                        ["Metadata"] = "true"
+                    },
                 })
             end
         end

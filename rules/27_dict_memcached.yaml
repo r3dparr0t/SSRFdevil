@@ -12,6 +12,16 @@ meta:
   severity: medium
   tags: [dict, memcached, internal]
   references: []
+  success_indicator:
+    - "literal:STAT"
+    - "literal:END"
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
+    - "literal:Connection refused"
 
 match:
   schemes: [http, https, dict]

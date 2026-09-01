@@ -8,17 +8,20 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 100
-  confidence: 90
-  severity: critical
+  confidence: 60          # ← کاهش از ۹۰ به ۶۰
+  severity: high          # ← کاهش از critical به high
   tags: [aws, iam, credentials, cloud]
   references: []
   success_indicator:
-    - "regex:^[A-Za-z0-9_+=,.@-]+\\s*$"
+    - "regex:^[A-Za-z0-9_+=,.@-]+$"
   failure_indicator:
     - "literal:<html"
     - "literal:<!DOCTYPE"
-    - "literal:cannot open"
+    - "literal:404"
+    - "literal:Not Found"
+    - "literal:Access Denied"
 
+# match و script بدون تغییر می‌مانند
 match:
   schemes: [http, https]
   kinds: [Endpoint]

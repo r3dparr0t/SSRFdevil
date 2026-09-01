@@ -8,10 +8,17 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 70
-  confidence: 80
+  confidence: 55
   severity: medium
   tags: [parser, slash, bypass]
   references: []
+  success_indicator: []
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
 
 match:
   schemes: [http, https]

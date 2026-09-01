@@ -8,10 +8,22 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 75
-  confidence: 70
+  confidence: 75
   severity: medium
   tags: [file, windows, read]
   references: []
+  success_indicator:
+    - "literal:[extensions]"
+    - "literal:[fonts]"
+    - "literal:[mci extensions]"
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
+    - "literal:cannot open"
+    - "literal:no such file"
 
 match:
   schemes: [http, https, file]

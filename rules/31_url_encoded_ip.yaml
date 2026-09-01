@@ -8,16 +8,25 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 88
-  confidence: 86
+  confidence: 55
   severity: high
   tags: [url-encoding, ipv4, bypass]
   references: []
+  success_indicator: []
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
+
 match:
   schemes: [http, https]
   kinds: [Endpoint]
   allowed_methods: [GET, POST]
   required_tags: [Redirect, Callback, Webhook]
   require_params: true
+
 script:
   language: lua
   entry: run_batch

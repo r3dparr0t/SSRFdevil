@@ -8,10 +8,22 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 100
-  confidence: 95
+  confidence: 80
   severity: critical
   tags: [aws, metadata, cloud, ssrf]
   references: []
+  success_indicator:
+    - "literal:ami-id"
+    - "literal:hostname"
+    - "literal:instance-id"
+    - "literal:public-keys"
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:404"
+    - "literal:Access Denied"
+    - "literal:Forbidden"
+    - "literal:Not Found"
 
 match:
   schemes: [http, https]
