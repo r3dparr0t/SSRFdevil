@@ -21,6 +21,10 @@
 - **Rule Tester** — `cargo run --bin test_rule -- <path.yaml>` validates Lua scripts before deployment.
 
 ---
+## ⚠️ Authorized Use
+
+This project is intended for authorized security research, internal testing, and educational use only. Do not use it against systems without explicit permission.
+---
 
 ## 📦 Installation
 
