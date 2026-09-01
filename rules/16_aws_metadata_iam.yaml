@@ -12,6 +12,12 @@ meta:
   severity: critical
   tags: [aws, iam, credentials, cloud]
   references: []
+  success_indicator:
+    - "regex:^[A-Za-z0-9_+=,.@-]+\\s*$"
+  failure_indicator:
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
+    - "literal:cannot open"
 
 match:
   schemes: [http, https]

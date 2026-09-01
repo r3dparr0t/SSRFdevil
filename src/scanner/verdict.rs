@@ -52,7 +52,8 @@ pub enum Reason {
     Dns,
     ConnectionRefused,
     NegativeIndicator,      // از failure_indicator یا 4xx
-    SuccessIndicator,       // از success_indicator
+    SuccessIndicator,       // از success_indicator - پیدا شد
+    MissingSuccessIndicator, // رول success_indicator داشت ولی پیدا نشد -> سقف امتیاز
 }
 
 const SUCCESS_INDICATOR_BONUS: i32 = 30;
@@ -148,13 +149,29 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
 
     let mut score = (status_score + metadata_score).max(0);
 
-    // ۴. بررسی success_indicator (فقط امتیاز مثبت، نه شرط لازم)
+    // ۴. بررسی success_indicator
+    // نکته‌ی مهم: اگه رول اصلاً success_indicator تعریف نکرده باشه، رفتار قبلی
+    // بدون تغییر می‌مونه (فقط status/متادیتا). ولی اگه رول صراحتاً success_indicator
+    // تعریف کرده، یعنی ادعا می‌کنه می‌تونه content-aware باشه - در این حالت پیدا
+    // نشدن اون نشونه دیگه فقط "بونوس رو از دست دادن" نیست، بلکه یعنی رول نتونسته
+    // موفقیت واقعی رو تأیید کنه، پس نباید اجازه بده verdict به Confirmed/Likely برسه
+    // (این دقیقاً همون چیزیه که false-positive endpoint نیاز داشت: status=200 خالی
+    // از هر مدرکی نباید هم‌تراز با یه 200 با مدرک واقعی امتیاز بگیره).
     if let Some(meta) = rule_meta {
-        for pattern in &meta.success_indicator {
-            if indicator::matches(pattern, &body_text) {
+        if !meta.success_indicator.is_empty() {
+            let matched_success = meta
+                .success_indicator
+                .iter()
+                .any(|pattern| indicator::matches(pattern, &body_text));
+
+            if matched_success {
                 reasons.push(Reason::SuccessIndicator);
                 score += SUCCESS_INDICATOR_BONUS;
-                break;
+            } else {
+                reasons.push(Reason::MissingSuccessIndicator);
+                // سقف سخت: پایین‌تر از آستانه‌ی Likely (50) نگه می‌داریم تا این
+                // نتیجه حداکثر Suspicious بشه، نه Confirmed/Likely.
+                score = score.min(49);
             }
         }
     }

@@ -12,6 +12,13 @@ meta:
   severity: critical
   tags: [file, local, read]
   references: []
+  success_indicator:
+    - "literal:root:x:0:0"
+  failure_indicator:
+    - "literal:no such file"
+    - "literal:cannot open"
+    - "literal:<html"
+    - "literal:<!DOCTYPE"
 
 match:
   schemes: [http, https, file]
