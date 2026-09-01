@@ -149,6 +149,20 @@ pub fn show_rule_details(rule: &RuleFile) {
     println!();
 }
 
+pub fn show_rule_code(rule: &RuleFile) {
+    println!("\n📜 Lua Script for: {} ({})", rule.meta.name, rule.meta.id);
+    println!("{}", "=" .repeat(60));
+    println!("Entry point: {}", rule.script.entry);
+    println!("Language:    {}", rule.script.language);
+    println!("{}", "-" .repeat(60));
+    
+    // شماره‌گذاری خطوط برای راحتی
+    for (i, line) in rule.script.source.lines().enumerate() {
+        println!("{:>4} │ {}", i + 1, line);
+    }
+    println!("{}", "=" .repeat(60));
+}
+
 /// بارگذاری همه‌ی قواعد موجود در دیتابیس
 pub fn load_all_rules(db: &Db) -> Vec<RuleFile> {
     db.iter()

@@ -435,6 +435,22 @@ pub async fn run_interactive_console(
                     }
                 }
             }
+            "code" => {
+                if arg.is_empty() {
+                    if selected_rules.is_empty() {
+                        println!("[!] No rule active. Use 'use <id|idx>' first.");
+                    } else {
+                        // اگر آرگومان نداد، اولین رول انتخاب‌شده را نشان بده
+                        rule_engine::show_rule_code(&selected_rules[0]);
+                    }
+                } else if let Some(rules) = select_rule(db, arg, &last_results) {
+                    for r in &rules {
+                        rule_engine::show_rule_code(r);
+                    }
+                } else {
+                    println!("[!] Rule not found: {}", arg);
+                }
+            }
             "info" | "show" => {
                 if arg.is_empty() {
                     if selected_rules.is_empty() { println!("[!] No rule active."); }
@@ -480,6 +496,7 @@ fn print_help() {
         run /scan                       Execute selected rule(s) over crawled targets
         crawl                           Trigger deep target auditing
         cookie /session [clear|status]  Set/clear/show session cookie (auto-enables injection)
+        code [idx|id]                   Show Lua source code of a rule
         info/ show [idx|id]             Inspect specific rule parameters
         back /b                         Clear active rule/batch queue
         settings                        Toggle UA profiles & Batch Modes (Auto/Step)
