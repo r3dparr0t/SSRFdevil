@@ -1,10 +1,8 @@
-📝 README.md جدید برای SSRFdevil
-
 ```markdown
 # SSRFdevil — Advanced SSRF Scanner & Exploitation Framework
 
-[![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](🦀)](https://www.rust-lang.org/)
+[![License: MIT](📃)](https://opensource.org/licenses/MIT)
 
 **SSRFdevil** is a modern, rule‑based Server‑Side Request Forgery (SSRF) scanner with a built‑in crawler, Lua scripting engine, and an intelligent evidence‑based verdict system. It is designed for security researchers and penetration testers to automate detection and exploitation of SSRF vulnerabilities in web applications.
 
