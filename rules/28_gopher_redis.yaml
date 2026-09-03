@@ -17,6 +17,7 @@ meta:
     - "regex:^\\*"
     - "literal:redis_version"
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

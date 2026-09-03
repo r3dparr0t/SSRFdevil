@@ -8,7 +8,7 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 90
-  confidence: 80
+  confidence: 85
   severity: critical
   tags: [azure, metadata, cloud]
   references: []
@@ -17,6 +17,7 @@ meta:
     - "literal:resourceGroupName"
     - "literal:subscriptionId"
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

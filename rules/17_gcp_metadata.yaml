@@ -8,7 +8,7 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 95
-  confidence: 80
+  confidence: 90
   severity: critical
   tags: [gcp, metadata, cloud]
   references: []
@@ -17,6 +17,7 @@ meta:
     - "literal:token_type"
     - "literal:expires_in"
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

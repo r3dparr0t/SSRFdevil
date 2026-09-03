@@ -8,12 +8,13 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 90
-  confidence: 55
+  confidence: 90
   severity: high
   tags: [ipv4, port, bypass]
   references: []
   success_indicator: []
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

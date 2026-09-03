@@ -17,6 +17,7 @@ meta:
     - "literal:[fonts]"
     - "literal:[mci extensions]"
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

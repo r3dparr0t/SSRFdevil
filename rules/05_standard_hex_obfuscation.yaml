@@ -8,13 +8,14 @@ meta:
   created: "2026-06-18"
   updated: "2026-07-21"
   rank: 85
-  confidence: 55
+  confidence: 95
   severity: high
   tags: [hex, obfuscation, ipv4, encoding, localhost, bypass]
   references:
     - "https://book.hacktricks.xyz/pentesting-web/ssrf#bypass-using-ipv4-encoding"
   success_indicator: []
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

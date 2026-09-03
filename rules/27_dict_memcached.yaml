@@ -16,6 +16,7 @@ meta:
     - "literal:STAT"
     - "literal:END"
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

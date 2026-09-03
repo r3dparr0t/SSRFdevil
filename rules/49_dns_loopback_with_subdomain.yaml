@@ -8,12 +8,13 @@ meta:
   created: "2026-06-19"
   updated: "2026-07-21"
   rank: 107
-  confidence: 55
+  confidence: 95
   severity: high
   tags: [dns, subdomain, localhost, bypass]
   references: []
   success_indicator: []
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

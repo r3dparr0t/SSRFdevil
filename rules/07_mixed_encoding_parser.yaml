@@ -8,12 +8,13 @@ meta:
   created: "2026-06-20"
   updated: "2026-07-21"
   rank: 95
-  confidence: 55
+  confidence: 90
   severity: high
   tags: [encoding, octal, hex, parser, bypass]
   references: []
   success_indicator: []
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:<html"
     - "literal:<!DOCTYPE"
     - "literal:404"

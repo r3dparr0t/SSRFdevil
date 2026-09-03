@@ -15,6 +15,7 @@ meta:
   success_indicator:
     - "literal:root:x:0:0"
   failure_indicator:
+    - "literal:Internal Admin Interface"
     - "literal:no such file"
     - "literal:cannot open"
     - "literal:<html"
