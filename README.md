@@ -47,7 +47,20 @@ The binary will be available at target/release/ssrfdevil.
 
 🎯 Quick Start
 
-Basic Usage
+```bash
+# Install
+cargo install ssrfdevil
+
+# Run
+ssrfdevil https://target.com
+
+# Inside the console:
+> crawl
+> use all
+> run
+> export json report.json
+```
+Or directly from code:
 
 ```bash
 cargo run -- https://example.com
@@ -55,21 +68,21 @@ cargo run -- https://example.com
 
 This launches the interactive console with target pre‑loaded.
 
-Console Commands
+## Console Commands
 
-Command Description
-ls / list Show all available rules
-use <index\|id\|tag\|all> Select rules for scanning
-crawl Run the crawler to discover endpoints
-run / scan Execute selected rules against crawled targets
-cookie [clear\|status] Set, clear, or view session cookie (auto‑enables injection)
-code <index\|id> Display Lua source code of a rule
-info <index\|id> Show rule metadata (tags, severity, confidence, indicators)
-settings Open interactive TUI to configure UA, threads, proxies, etc.
-search <text> Search rules by name, tag, or description
-back Clear selected rules
-help Show command list
-exit / quit Exit console
+- `search [text]` - Search database rules
+- `use [idx|id|all]` - Select one rule, or 'all|tag' for Batch Scanning
+- `list / ls` - Show all loaded rules
+- `run / scan` - Execute selected rule(s) over crawled targets
+- `crawl` - Trigger deep target auditing
+- `cookie / session [clear|status]` - Set/clear/show session cookie
+- `code [idx|id]` - Show Lua source code of a rule
+- `info / show [idx|id]` - Inspect specific rule parameters
+- `export [json|md] [filename]` - Save scan report to JSON or Markdown file
+- `back / b` - Clear active rule/batch queue
+- `settings` - Toggle UA profiles & Batch Modes (Auto/Step)
+- `help` - Show help menu
+- `exit / quit` - Terminate active terminal
 
 ---
 
