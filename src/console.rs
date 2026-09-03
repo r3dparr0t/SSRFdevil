@@ -490,16 +490,17 @@ fn select_rule(db: &Db, input: &str, last_results: &[RuleFile]) -> Option<Vec<Ru
 fn print_help() {
     println!(
         "\nCommands:
-        search [text]                   Search database rules
-        use [idx|id|all]                Select a single rule, or 'all|tag' for Batch Scanning
-        list /ls                        Show all loaded rules
-        run /scan                       Execute selected rule(s) over crawled targets
-        crawl                           Trigger deep target auditing
-        cookie /session [clear|status]  Set/clear/show session cookie (auto-enables injection)
-        code [idx|id]                   Show Lua source code of a rule
-        info/ show [idx|id]             Inspect specific rule parameters
-        back /b                         Clear active rule/batch queue
-        settings                        Toggle UA profiles & Batch Modes (Auto/Step)
-        exit /quit                      Terminate active terminal\n"
+        search [text]                    Search database rules
+        use [idx|id|all]                 Select one rule, or 'all|tag' for Batch Scanning
+        list / ls                        Show all loaded rules
+        run / scan                       Execute selected rule(s) over crawled targets
+        crawl                            Trigger deep target auditing
+        cookie / session [clear|status]  Set/clear/show session cookie
+        code [idx|id]                    Show Lua source code of a rule
+        info / show [idx|id]             Inspect specific rule parameters
+        back / b                         Clear active rule/batch queue
+        settings                         Toggle UA profiles & Batch Modes (Auto/Step)
+        help                             Show help menu
+        exit / quit                      Terminate active terminal\n"
     );
 }
