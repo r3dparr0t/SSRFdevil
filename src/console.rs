@@ -459,6 +459,53 @@ pub async fn run_interactive_console(
                     for r in &rules { rule_engine::show_rule_details(r); }
                 }
             }
+            "export" => {
+                if arg.is_empty() {
+                    println!("Usage: export json|md [filename]");
+                    println!("Example: export json report.json");
+                    println!("         export md report.md");
+                    continue;
+                }
+            
+                if selected_rules.is_empty() {
+                    println!("[!] No rule selected. Use 'use <id|idx|all>' first.");
+                    continue;
+                }
+            
+                let targets = crawler.targets().await;
+                if targets.is_empty() {
+                    println!("[!] No targets found. Run 'crawl' first.");
+                    continue;
+                }
+            
+                let parts: Vec<&str> = arg.split_whitespace().collect();
+                let format = parts[0];  // &str
+                let filename = if parts.len() > 1 { parts[1] } else { "report" };
+            
+                println!("[*] Running scan to generate report...");
+                let rules = selected_rules.clone();
+                let results = scanner.run_full_scan(targets, rules).await;
+            
+                let report_content = match format {
+                    "json" => verdict::export_json(&results, &scanner.rule_map),
+                    "md" | "markdown" => verdict::export_markdown(&results, &scanner.rule_map),
+                    _ => {
+                        println!("[!] Unknown format: {}. Use 'json' or 'md'.", format);
+                        continue;
+                    }
+                };
+            
+                let full_filename = if filename.contains('.') {
+                    filename.to_string()
+                } else {
+                    format!("{}.{}", filename, if format == "json" { "json" } else { "md" })
+                };
+            
+                match std::fs::write(&full_filename, report_content) {
+                    Ok(_) => println!("[✅] Report saved to: {}", full_filename),
+                    Err(e) => println!("[❌] Failed to save report: {}", e),
+                }
+            }
             "back" | "b" => {
                 selected_rules.clear();
                 rule_engine::SELECTED_RULES.write().unwrap().clear();
@@ -498,6 +545,7 @@ fn print_help() {
         cookie / session [clear|status]  Set/clear/show session cookie
         code [idx|id]                    Show Lua source code of a rule
         info / show [idx|id]             Inspect specific rule parameters
+        export [json|md] [filename]      Save scan report to JSON or Markdown file
         back / b                         Clear active rule/batch queue
         settings                         Toggle UA profiles & Batch Modes (Auto/Step)
         help                             Show help menu

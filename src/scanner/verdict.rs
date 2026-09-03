@@ -17,6 +17,7 @@ use crate::{
     scanner::{scanner::ScanResult, indicator},
     engine::rule::RuleMeta,
 };
+use serde_json;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -318,4 +319,140 @@ pub fn print_report(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>
         summary.rejected,
         summary.errors
     );
+}
+
+// ---- Export to JSON ----
+pub fn export_json(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) -> String {
+    let mut findings = Vec::new();
+
+    for scan in results {
+        let verdict = classify(scan, rule_map);
+        let status = scan.response.as_ref().map(|resp| resp.status).unwrap_or(0);
+        let error = scan.error.clone().unwrap_or_else(|| "".to_string());
+
+        let item = serde_json::json!({
+            "rule_id": scan.payload.rule_id,
+            "method": scan.payload.method,
+            "url": scan.payload.url,
+            "status": status,
+            "score": verdict.score,
+            "verdict": format!("{:?}", verdict.verdict),
+            "reasons": format!("{:?}", verdict.reasons),
+            "severity": format!("{:?}", scan.payload.severity),
+            "confidence": scan.payload.confidence,
+            "error": error,
+        });
+        findings.push(item);
+    }
+
+    let summary = summarize(results, rule_map);
+
+    let output = serde_json::json!({
+        "summary": {
+            "total": results.len(),
+            "confirmed": summary.confirmed,
+            "likely": summary.likely,
+            "suspicious": summary.suspicious,
+            "rejected": summary.rejected,
+            "errors": summary.errors,
+        },
+        "findings": findings,
+    });
+    serde_json::to_string_pretty(&output).unwrap()
+}
+
+// ---- Export to Markdown ----
+pub fn export_markdown(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) -> String {
+    let mut md = String::new();
+    md.push_str("# SSRFdevil Scan Report\n\n");
+
+    let summary = summarize(results, rule_map);
+    md.push_str("## Summary\n\n");
+    md.push_str("| Metric | Count |\n|--------|-------|\n");
+    md.push_str(&format!("| Total | {} |\n", results.len()));
+    md.push_str(&format!("| Confirmed | {} |\n", summary.confirmed));
+    md.push_str(&format!("| Likely | {} |\n", summary.likely));
+    md.push_str(&format!("| Suspicious | {} |\n", summary.suspicious));
+    md.push_str(&format!("| Rejected | {} |\n", summary.rejected));
+    md.push_str(&format!("| Errors | {} |\n", summary.errors));
+    md.push_str("\n");
+
+    // Findings
+    let mut report: Vec<ReportItem> = results
+        .iter()
+        .map(|scan| ReportItem {
+            verdict: classify(scan, rule_map),
+            scan,
+        })
+        .collect();
+
+    report.sort_by(|a, b| b.verdict.score.cmp(&a.verdict.score));
+
+    let interesting: Vec<&ReportItem> = report
+        .iter()
+        .filter(|item| matches!(item.verdict.verdict, Verdict::Confirmed | Verdict::Likely))
+        .collect();
+
+    if !interesting.is_empty() {
+        md.push_str("## Findings\n\n");
+        md.push_str("| # | Score | Severity | Confidence | Rule | Method | URL | Status |\n");
+        md.push_str("|---|-------|----------|------------|------|--------|-----|--------|\n");
+        for (i, r) in interesting.iter().enumerate() {
+            let status = r.scan.response.as_ref().map(|resp| resp.status).unwrap_or(0);
+            md.push_str(&format!(
+                "| {} | {} | {:?} | {} | {} | {} | {} | {} |\n",
+                i + 1,
+                r.verdict.score,
+                r.scan.payload.severity,
+                r.scan.payload.confidence,
+                r.scan.payload.rule_id,
+                r.scan.payload.method,
+                r.scan.payload.url,
+                status
+            ));
+        }
+        md.push_str("\n");
+    } else {
+        md.push_str("## Findings\n\nNo confirmed or likely findings.\n\n");
+    }
+
+    // Filtered out
+    use std::collections::{HashMap, HashSet};
+    let mut rejected_by_rule: HashMap<&str, usize> = HashMap::new();
+    let mut error_by_rule: HashMap<&str, usize> = HashMap::new();
+    let mut suspicious_by_rule: HashMap<&str, usize> = HashMap::new();
+
+    for item in &report {
+        match item.verdict.verdict {
+            Verdict::Rejected => *rejected_by_rule.entry(&item.scan.payload.rule_id).or_insert(0) += 1,
+            Verdict::Error => *error_by_rule.entry(&item.scan.payload.rule_id).or_insert(0) += 1,
+            Verdict::Suspicious => *suspicious_by_rule.entry(&item.scan.payload.rule_id).or_insert(0) += 1,
+            _ => {}
+        }
+    }
+
+    if !rejected_by_rule.is_empty() || !error_by_rule.is_empty() || !suspicious_by_rule.is_empty() {
+        md.push_str("## Filtered Out (by rule)\n\n");
+        let mut rule_ids: Vec<&str> = rejected_by_rule
+            .keys()
+            .chain(error_by_rule.keys())
+            .chain(suspicious_by_rule.keys())
+            .copied()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        rule_ids.sort();
+
+        md.push_str("| Rule | Rejected | Suspicious | Errors |\n");
+        md.push_str("|------|----------|------------|--------|\n");
+        for rule_id in rule_ids {
+            let r = rejected_by_rule.get(rule_id).copied().unwrap_or(0);
+            let s = suspicious_by_rule.get(rule_id).copied().unwrap_or(0);
+            let e = error_by_rule.get(rule_id).copied().unwrap_or(0);
+            md.push_str(&format!("| {} | {} | {} | {} |\n", rule_id, r, s, e));
+        }
+        md.push_str("\n");
+    }
+
+    md
 }
