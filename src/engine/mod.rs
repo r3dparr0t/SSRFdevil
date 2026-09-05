@@ -8,6 +8,7 @@ pub mod cookie_engine;
 pub mod delay_engine;
 pub mod trace_engine;
 pub mod proxy_engine;
+pub mod oob_engine;
 
 // بازنشر کانفیگ‌ها برای دسترسی راحت‌تر در بیرونِ ماژول
 pub use request::RequestData;

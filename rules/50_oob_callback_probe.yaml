@@ -3,10 +3,10 @@ meta:
   id: oob_callback_probe
   version: 1
   name: "OOB Callback Probe"
-  description: "Injects a unique out-of-band callback URL to detect blind SSRF (no visible response needed - check your collaborator/interactsh dashboard for hits)"
+  description: "Injects a unique out-of-band callback URL to detect blind SSRF"
   author: "SSRFdevil"
   created: "2026-09-04"
-  updated: "2026-09-04"
+  updated: "2026-09-05"
   rank: 110
   confidence: 95
   severity: high
@@ -35,38 +35,44 @@ script:
     function run_batch(targets)
         local results = {}
 
-        -- اگه کاربر oob_base رو تنظیم نکرده باشه (با دستور 'oob <url>' تو
-        -- کنسول)، این رول سایلنت هیچ payload ای تولید نمی‌کنه - چون بدون
-        -- یه کالبک‌سرور واقعی، این probe اصلاً معنی نداره.
-        if oob_base == nil then
+        -- اگر OOB فعال نباشد، هیچ payloadی نساز
+        if oob_base == nil or oob_base == "" then
             return results
         end
 
         for _, target in ipairs(targets) do
             local base_url = target.url
+
             for _, param in ipairs(target.params) do
-                local new_url = base_url
                 if param.location == "Query" then
-                    -- هر target یه token یکتای خودش رو می‌گیره تا بعداً از
-                    -- روی hit تو داشبورد کالبک‌سرور بشه دقیقاً فهمید کدوم
-                    -- target/rule باعث درخواست خروجی شده.
                     local token = oob_token()
+
+                    -- اگر توکن ساخته نشد، این پارامتر را رد کن
+                    if token == nil or token == "" then
+                        goto continue
+                    end
+
                     local payload_vector = oob_base .. "/" .. token
                     local pattern = param.name .. "=[^&]*"
                     local replacement = param.name .. "=" .. payload_vector
+                    local new_url = base_url
+
                     if new_url:find(pattern) then
                         new_url = new_url:gsub(pattern, replacement)
                     else
                         local sep = new_url:find("%?") and "&" or "?"
                         new_url = new_url .. sep .. replacement
                     end
+
+                    table.insert(results, {
+                        url = new_url,
+                        method = target.method or "GET",
+                        oob_token = token
+                    })
                 end
-                table.insert(results, {
-                    url = new_url,
-                    method = target.method or "GET",
-                    oob_token = token,
-                })
+                ::continue::
             end
         end
+
         return results
     end

@@ -22,6 +22,7 @@ pub struct LuaPayload {
     pub rule_id: String,
     pub severity: Severity,
     pub confidence: u8,
+    pub correlation_id: Option<String>,
 }
 
 // حداکثر زمانی که یک رول اجازه دارد داخل لوا اجرا شود. اگر رد شود، اجرا با خطا قطع می‌شود
@@ -82,9 +83,9 @@ fn execute_lua_master_batch(batches: &[matcher::BatchTask]) -> Vec<LuaPayload> {
 fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn Error + Send + Sync>> {
     let lua = Lua::new();
 
-    // محافظ زمانی: تنظیم Hook روی اجرا جهت بررسی Timeout
+    // --- Timeout Hook ---
     let start = Instant::now();
-    let triggers = HookTriggers::default().every_line();
+    let triggers = HookTriggers::default().every_nth_instruction(1000);  // تغییر این خط
     
     lua.set_hook(triggers, move |_, _| {
         if start.elapsed() > LUA_RULE_TIMEOUT {
@@ -97,6 +98,30 @@ fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn
         }
     });
 
+    // ==========================================
+    // تزریق OOB به Lua
+    // ==========================================
+    let rule_id_for_lua = task.rule.meta.id.clone();
+
+    // متغیر oob_base
+    if let Some(base) = crate::engine::oob_engine::get_base_url() {
+        lua.globals().set("oob_base", base)?;
+    } else {
+        lua.globals().set("oob_base", mlua::Value::Nil)?;
+    }
+
+    // تابع oob_token()
+    let oob_token_fn = lua.create_function(move |_, ()| {
+        match crate::engine::oob_engine::generate_token(&rule_id_for_lua) {
+            Some(token) => Ok(token),
+            None => Ok(String::new()),
+        }
+    })?;
+    lua.globals().set("oob_token", oob_token_fn)?;
+
+    // ==========================================
+    // ساخت جدول targets
+    // ==========================================
     let targets_table = lua.create_table()?;
     for (i, target) in task.targets.iter().enumerate() {
         let t_table = lua.create_table()?;
@@ -115,6 +140,7 @@ fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn
         targets_table.set(i + 1, t_table)?;
     }
 
+    // لود اسکریپت
     lua.load(&task.rule.script.source).exec()?;
 
     let entry_fn = if task.rule.script.entry.is_empty() {
@@ -122,12 +148,19 @@ fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn
     } else {
         &task.rule.script.entry
     };
-    let func: mlua::Function = lua.globals().get(entry_fn)
+
+    let func: mlua::Function = lua
+        .globals()
+        .get(entry_fn)
         .map_err(|e| format!("entry function '{}' not found: {}", entry_fn, e))?;
 
     let results_table: Table = func.call(targets_table)?;
 
+    // ==========================================
+    // پارس نتایج
+    // ==========================================
     let mut payloads = Vec::new();
+
     for pair in results_table.sequence_values::<Table>() {
         let res = match pair {
             Ok(r) => r,
@@ -154,24 +187,41 @@ fn run_single_rule(task: &matcher::BatchTask) -> Result<Vec<LuaPayload>, Box<dyn
             }
         }
 
-        let method = res.get::<_, Option<String>>("method")
-            .ok().flatten().unwrap_or_else(|| "GET".to_string());
+        let method = res
+            .get::<_, Option<String>>("method")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "GET".to_string());
+
         let body = res.get::<_, Option<String>>("body").ok().flatten();
-        let action = res.get::<_, Option<String>>("action")
-            .ok().flatten().unwrap_or_else(|| "scan".to_string());
+        let action = res
+            .get::<_, Option<String>>("action")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "scan".to_string());
+
+        // گرفتن oob_token از نتیجه رول
+        let correlation_id: Option<String> = res
+            .get::<_, Option<String>>("oob_token")
+            .ok()
+            .flatten()
+            .filter(|s| !s.is_empty());
 
         payloads.push(LuaPayload {
-            url, method, headers: headers_map, body, action,
+            url,
+            method,
+            headers: headers_map,
+            body,
+            action,
             rule_id: task.rule.meta.id.clone(),
             severity: task.rule.meta.severity.clone(),
             confidence: task.rule.meta.confidence,
+            correlation_id,
         });
     }
 
     Ok(payloads)
 }
-
-
 fn log_payload_to_file(payload: &LuaPayload) {
     std::fs::create_dir_all(crate::paths::CRAWL_LOG_DIR).ok();
     if let Ok(mut file) = OpenOptions::new()

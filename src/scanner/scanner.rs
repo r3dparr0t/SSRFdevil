@@ -61,9 +61,9 @@ impl Scanner {
         self: &Arc<Self>,
         targets: Vec<Target>,
         rules: Vec<RuleFile>,
-    ) -> Vec<ScanResult> {
+    ) -> (Vec<ScanResult>, Vec<crate::engine::oob_engine::OobHit>) {
         println!("[+] Got {} target(s). Matching selected rules with targets...", targets.len());
-
+    
         let payloads = match tokio::task::spawn_blocking(move || {
             executor::process_all_batches_single_pass(&targets, &rules)
         }).await {
@@ -73,19 +73,19 @@ impl Scanner {
                 Vec::new()
             }
         };
-
+    
         self.run(payloads).await
     }
-
-    pub async fn run(self: &Arc<Self>, payloads: Vec<LuaPayload>) -> Vec<ScanResult> {
+        
+    pub async fn run(self: &Arc<Self>, payloads: Vec<LuaPayload>) -> (Vec<ScanResult>, Vec<crate::engine::oob_engine::OobHit>) {
         if payloads.is_empty() {
             println!("[!] No payload to scan.");
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
-
+    
         let semaphore = Arc::new(Semaphore::new(self.config.max_concurrent.max(1)));
         let mut handles = Vec::with_capacity(payloads.len());
-
+    
         for payload in payloads {
             let sem = semaphore.clone();
             let this = Arc::clone(self);
@@ -95,7 +95,7 @@ impl Scanner {
                 this.execute_one(payload).await
             }));
         }
-
+    
         let mut results = Vec::with_capacity(handles.len());
         for h in handles {
             match h.await {
@@ -103,12 +103,26 @@ impl Scanner {
                 Err(e) => eprintln!("    ❌ Scanner task join error: {}", e),
             }
         }
-
+    
         let ok = results.iter().filter(|r| r.error.is_none()).count();
         println!("[+] Scan done: {}/{} request(s) succeeded.", ok, results.len());
-        results
+    
+        // ========== OOB Poll ==========
+        let oob_hits = if crate::engine::oob_engine::is_enabled() {
+            println!("[OOB] Polling for out-of-band hits...");
+            let hits = crate::engine::oob_engine::poll(&self.engine).await;
+            println!("[OOB] Found {} hit(s).", hits.len());
+            for hit in &hits {
+                println!("    → OOB Hit: {} ({})", hit.correlation_id, hit.hit_type);
+            }
+            hits
+        } else {
+            Vec::new()
+        };
+    
+        (results, oob_hits)
     }
-
+   
     async fn execute_one(&self, payload: LuaPayload) -> ScanResult {
         match Self::build_request(&payload) {
             Ok(req) => match self.engine.send(req).await {

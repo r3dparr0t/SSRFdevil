@@ -55,12 +55,32 @@ pub enum Reason {
     NegativeIndicator,      // از failure_indicator یا 4xx
     SuccessIndicator,       // از success_indicator - پیدا شد
     MissingSuccessIndicator, // رول success_indicator داشت ولی پیدا نشد -> سقف امتیاز
+    OobHit, 
 }
 
 const SUCCESS_INDICATOR_BONUS: i32 = 30;
+use crate::engine::oob_engine::OobHit;
 
-pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> VerdictResult {
+pub fn classify(
+    scan: &ScanResult,
+    rule_map: &HashMap<String, RuleMeta>,
+    oob_hits: &[OobHit],
+) -> VerdictResult {
     let mut reasons = Vec::new();
+
+    // ==========================================
+    // اول از همه: بررسی OOB Hit (بالاترین اولویت برای Blind SSRF)
+    // ==========================================
+    if let Some(corr_id) = &scan.payload.correlation_id {
+        if oob_hits.iter().any(|h| &h.correlation_id == corr_id) {
+            reasons.push(Reason::OobHit);
+            return VerdictResult {
+                verdict: Verdict::Confirmed,
+                score: 95,
+                reasons,
+            };
+        }
+    }
 
     // ----------------------------
     // Transport errors
@@ -98,13 +118,9 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
     };
 
     let body_text = String::from_utf8_lossy(&response.body);
-
-    // ----------------------------
-    // دریافت متادیتای Rule (graceful)
-    // ----------------------------
     let rule_meta = rule_map.get(&scan.payload.rule_id);
 
-    // ۱. بررسی failure_indicator (رد قطعی، اولویت بالا)
+    // ۱. failure_indicator
     if let Some(meta) = rule_meta {
         for pattern in &meta.failure_indicator {
             if indicator::matches(pattern, &body_text) {
@@ -118,7 +134,7 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
         }
     }
 
-    // ۲. امتیاز status code (سیگنال غالب)
+    // ۲. status score
     let status_score: i32 = match response.status {
         200..=299 => {
             reasons.push(Reason::Http2xx);
@@ -130,7 +146,6 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
         }
         400..=499 => {
             reasons.push(Reason::ClientError);
-            // 4xx → رد قطعی (حتی اگر failure_indicator وجود نداشته باشد)
             return VerdictResult {
                 verdict: Verdict::Rejected,
                 score: 0,
@@ -144,20 +159,13 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
         _ => 0,
     };
 
-    // ۳. امتیاز متادیتای Rule (severity + confidence) – مدیفایر محدود
+    // ۳. metadata score
     let metadata_score =
         calculate_metadata_score(scan.payload.severity.weight() as i32, scan.payload.confidence as i32);
 
     let mut score = (status_score + metadata_score).max(0);
 
-    // ۴. بررسی success_indicator
-    // نکته‌ی مهم: اگه رول اصلاً success_indicator تعریف نکرده باشه، رفتار قبلی
-    // بدون تغییر می‌مونه (فقط status/متادیتا). ولی اگه رول صراحتاً success_indicator
-    // تعریف کرده، یعنی ادعا می‌کنه می‌تونه content-aware باشه - در این حالت پیدا
-    // نشدن اون نشونه دیگه فقط "بونوس رو از دست دادن" نیست، بلکه یعنی رول نتونسته
-    // موفقیت واقعی رو تأیید کنه، پس نباید اجازه بده verdict به Confirmed/Likely برسه
-    // (این دقیقاً همون چیزیه که false-positive endpoint نیاز داشت: status=200 خالی
-    // از هر مدرکی نباید هم‌تراز با یه 200 با مدرک واقعی امتیاز بگیره).
+    // ۴. success_indicator
     if let Some(meta) = rule_meta {
         if !meta.success_indicator.is_empty() {
             let matched_success = meta
@@ -170,8 +178,6 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
                 score += SUCCESS_INDICATOR_BONUS;
             } else {
                 reasons.push(Reason::MissingSuccessIndicator);
-                // سقف سخت: پایین‌تر از آستانه‌ی Likely (50) نگه می‌داریم تا این
-                // نتیجه حداکثر Suspicious بشه، نه Confirmed/Likely.
                 score = score.min(49);
             }
         }
@@ -179,7 +185,7 @@ pub fn classify(scan: &ScanResult, rule_map: &HashMap<String, RuleMeta>) -> Verd
 
     // ۵. Verdict نهایی
     let verdict = match score {
-        70..=i32::MAX => Verdict::Confirmed,   // اصلاح: استفاده از i32::MAX
+        70..=i32::MAX => Verdict::Confirmed,
         50..=69 => Verdict::Likely,
         30..=49 => Verdict::Suspicious,
         _ => Verdict::Rejected,
@@ -196,7 +202,10 @@ fn calculate_metadata_score(severity_weight: i32, confidence: i32) -> i32 {
     severity_weight * 3 + confidence / 5
 }
 
-pub fn summarize(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) -> VerdictSummary {
+pub fn summarize(
+    results: &[ScanResult],
+    rule_map: &HashMap<String, RuleMeta>,
+    oob_hits: &[OobHit],) -> VerdictSummary {
     let mut summary = VerdictSummary {
         confirmed: 0,
         likely: 0,
@@ -206,7 +215,7 @@ pub fn summarize(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) -
     };
 
     for r in results {
-        match classify(r, rule_map).verdict {
+        match classify(r, rule_map, oob_hits).verdict {
             Verdict::Confirmed => summary.confirmed += 1,
             Verdict::Likely => summary.likely += 1,
             Verdict::Suspicious => summary.suspicious += 1,
@@ -223,13 +232,16 @@ struct ReportItem<'a> {
     verdict: VerdictResult,
 }
 
-pub fn print_report(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) {
+pub fn print_report(
+    results: &[ScanResult],
+    rule_map: &HashMap<String, RuleMeta>,
+    oob_hits: &[OobHit],) {
     println!("\n[+] ===== Scan Report =====");
 
     let mut report: Vec<ReportItem> = results
         .iter()
         .map(|scan| ReportItem {
-            verdict: classify(scan, rule_map),
+            verdict: classify(scan, rule_map, oob_hits),
             scan,
         })
         .collect();
@@ -309,7 +321,7 @@ pub fn print_report(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>
         }
     }
 
-    let summary = summarize(results, rule_map);
+    let summary = summarize(results, rule_map, oob_hits);
     println!(
         "\n[+] Total: {} | Confirmed: {} | Likely: {} | Suspicious: {} | Rejected: {} | Error: {}",
         results.len(),
@@ -322,11 +334,14 @@ pub fn print_report(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>
 }
 
 // ---- Export to JSON ----
-pub fn export_json(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) -> String {
+pub fn export_json(
+    results: &[ScanResult],
+    rule_map: &HashMap<String, RuleMeta>,
+    oob_hits: &[OobHit],) -> String {
     let mut findings = Vec::new();
 
     for scan in results {
-        let verdict = classify(scan, rule_map);
+        let verdict = classify(scan, rule_map, oob_hits);
         let status = scan.response.as_ref().map(|resp| resp.status).unwrap_or(0);
         let error = scan.error.clone().unwrap_or_else(|| "".to_string());
 
@@ -345,7 +360,7 @@ pub fn export_json(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>)
         findings.push(item);
     }
 
-    let summary = summarize(results, rule_map);
+    let summary = summarize(results, rule_map,oob_hits);
 
     let output = serde_json::json!({
         "summary": {
@@ -362,11 +377,14 @@ pub fn export_json(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>)
 }
 
 // ---- Export to Markdown ----
-pub fn export_markdown(results: &[ScanResult], rule_map: &HashMap<String, RuleMeta>) -> String {
+pub fn export_markdown(
+    results: &[ScanResult],
+    rule_map: &HashMap<String, RuleMeta>,
+    oob_hits: &[OobHit],) -> String {
     let mut md = String::new();
     md.push_str("# SSRFdevil Scan Report\n\n");
 
-    let summary = summarize(results, rule_map);
+    let summary = summarize(results, rule_map, oob_hits);
     md.push_str("## Summary\n\n");
     md.push_str("| Metric | Count |\n|--------|-------|\n");
     md.push_str(&format!("| Total | {} |\n", results.len()));
@@ -381,7 +399,7 @@ pub fn export_markdown(results: &[ScanResult], rule_map: &HashMap<String, RuleMe
     let mut report: Vec<ReportItem> = results
         .iter()
         .map(|scan| ReportItem {
-            verdict: classify(scan, rule_map),
+            verdict: classify(scan, rule_map, oob_hits),
             scan,
         })
         .collect();

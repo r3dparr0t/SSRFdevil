@@ -403,8 +403,8 @@ pub async fn run_interactive_console(
                 
                 // 🔥 کلون کردن برای انتقال مالکیت به closure
                 let rules = selected_rules.clone();
-                let results = scanner.run_full_scan(targets, rules).await;
-                verdict::print_report(&results, &scanner.rule_map);
+                let (results, oob_hits) = scanner.run_full_scan(targets, rules).await;
+                verdict::print_report(&results, &scanner.rule_map, &oob_hits);
             }
             "cookie" | "session" => {
                 if arg == "clear" || arg == "off" {
@@ -484,11 +484,11 @@ pub async fn run_interactive_console(
             
                 println!("[*] Running scan to generate report...");
                 let rules = selected_rules.clone();
-                let results = scanner.run_full_scan(targets, rules).await;
+                let (results, oob_hits) = scanner.run_full_scan(targets, rules,).await;
             
                 let report_content = match format {
-                    "json" => verdict::export_json(&results, &scanner.rule_map),
-                    "md" | "markdown" => verdict::export_markdown(&results, &scanner.rule_map),
+                    "json" => verdict::export_json(&results, &scanner.rule_map, &oob_hits),
+                    "md" | "markdown" => verdict::export_markdown(&results, &scanner.rule_map, &oob_hits),
                     _ => {
                         println!("[!] Unknown format: {}. Use 'json' or 'md'.", format);
                         continue;
