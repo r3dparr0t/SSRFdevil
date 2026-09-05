@@ -37,7 +37,7 @@ pub struct Settings {
     // --- تنظیمات اختصاصی خزنده (جدید) ---
     pub crawler_rate_limit: usize,
     pub crawler_max_depth: usize,
-    
+
     // --- تنظیمات کیلسوییچ و وضعیت (جدید) ---
     pub crawler_max_targets: usize,
     pub crawler_save_state: bool,
@@ -51,7 +51,7 @@ impl Default for Settings {
             delay_min: 1000, // پیش‌فرض ۱ ثانیه
             delay_max: 3500, // پیش‌فرض ۳.۵ ثانیه
             max_runtime: 0,  // 0 یعنی نامحدود
-            
+
             crawler_rate_limit: 0,   // 0 یعنی نامحدود
             crawler_max_depth: 3,
             crawler_max_targets: 0,  // 0 یعنی نامحدود
