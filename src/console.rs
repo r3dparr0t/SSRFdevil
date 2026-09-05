@@ -406,6 +406,27 @@ pub async fn run_interactive_console(
                 let (results, oob_hits) = scanner.run_full_scan(targets, rules).await;
                 verdict::print_report(&results, &scanner.rule_map, &oob_hits);
             }
+            "oob" => {
+                if arg == "clear" || arg == "off" {
+                    crate::engine::oob_engine::disable();
+                } else if arg == "status" {
+                    if crate::engine::oob_engine::is_enabled() {
+                        let base = crate::engine::oob_engine::get_base_url().unwrap_or_default();
+                        println!("[i] OOB enabled. Base: {} | registered probes: {}", base, crate::engine::oob_engine::registered_count());
+                    } else {
+                        println!("[i] OOB not configured. Use: oob <base_url> [poll_url]");
+                    }
+                } else if arg.is_empty() {
+                    println!("Usage: oob <base_url> [poll_url] | oob status | oob clear");
+                    println!("Example: oob http://abc123.oast.fun");
+                } else {
+                    let parts: Vec<&str> = arg.split_whitespace().collect();
+                    let base = parts[0];
+                    let poll = parts.get(1).copied();
+                    crate::engine::oob_engine::enable(base, poll);
+                    println!("[i] Rules tagged for OOB probing (e.g. oob_callback_probe) will now fire.");
+                }
+            }
             "cookie" | "session" => {
                 if arg == "clear" || arg == "off" {
                     // غیرفعال کردن کوکی
@@ -543,6 +564,7 @@ fn print_help() {
         run / scan                       Execute selected rule(s) over crawled targets
         crawl                            Trigger deep target auditing
         cookie / session [clear|status]  Set/clear/show session cookie
+        oob <url> [poll_url] /status/clear  Enable/check/disable OOB blind-SSRF detection
         code [idx|id]                    Show Lua source code of a rule
         info / show [idx|id]             Inspect specific rule parameters
         export [json|md] [filename]      Save scan report to JSON or Markdown file
